@@ -17,6 +17,7 @@ import net.minecraft.client.player.AbstractClientPlayer;
 import net.minecraft.client.renderer.LightTexture;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderType;
+import net.minecraft.client.renderer.entity.LivingEntityRenderer;
 import net.minecraft.client.renderer.entity.RenderLayerParent;
 import net.minecraft.client.renderer.entity.layers.RenderLayer;
 import net.minecraft.client.renderer.entity.player.PlayerRenderer;
@@ -28,6 +29,7 @@ import net.minecraft.world.item.Items;
 import net.minecraftforge.client.event.EntityRenderersEvent;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /** Modelos y capas de dibujo de los cosméticos (capa, alas y sombreros). */
@@ -51,9 +53,51 @@ public final class CosmeticRender {
         for (String skin : new String[] {"default", "slim"}) {
             PlayerRenderer r = e.getSkin(skin);
             if (r == null) continue;
+            guardVanillaCape(r);
             r.addLayer(new CapeLayer(r, e.getEntityModels()));
             r.addLayer(new WingsLayer(r, e.getEntityModels()));
             r.addLayer(new HatLayer(r, e.getEntityModels()));
+        }
+    }
+
+    /**
+     * Envuelve la capa de Mojang: si llevas una capa de Atenas, la de Minecraft no se dibuja
+     * (si no, se ve su borde por debajo de la nuestra). Busca la lista de capas por tipo, no por nombre.
+     */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private static void guardVanillaCape(PlayerRenderer r) {
+        try {
+            for (java.lang.reflect.Field f : LivingEntityRenderer.class.getDeclaredFields()) {
+                if (!List.class.isAssignableFrom(f.getType())) continue;
+                f.setAccessible(true);
+                List layers = (List) f.get(r);
+                for (int i = 0; i < layers.size(); i++) {
+                    if (layers.get(i) instanceof net.minecraft.client.renderer.entity.layers.CapeLayer) {
+                        layers.set(i, new VanillaCapeGuard(r, (RenderLayer) layers.get(i)));
+                    }
+                }
+                return;
+            }
+        } catch (Exception ex) {
+            System.err.println("[AtenasSocial] capa vanilla: " + ex);
+        }
+    }
+
+    /** Capa de Mojang que se salta el dibujo cuando hay una capa de Atenas puesta. */
+    public static final class VanillaCapeGuard extends RenderLayer<AbstractClientPlayer, PlayerModel<AbstractClientPlayer>> {
+        private final RenderLayer<AbstractClientPlayer, PlayerModel<AbstractClientPlayer>> inner;
+
+        VanillaCapeGuard(RenderLayerParent<AbstractClientPlayer, PlayerModel<AbstractClientPlayer>> parent,
+                         RenderLayer<AbstractClientPlayer, PlayerModel<AbstractClientPlayer>> inner) {
+            super(parent);
+            this.inner = inner;
+        }
+
+        @Override
+        public void render(PoseStack ps, MultiBufferSource buf, int light, AbstractClientPlayer p, float limbSwing, float limbSwingAmount,
+                           float pt, float age, float headYaw, float headPitch) {
+            if (Cosmetics.of(p, Cosmetics.Type.CAPE) != null) return;
+            inner.render(ps, buf, light, p, limbSwing, limbSwingAmount, pt, age, headYaw, headPitch);
         }
     }
 
