@@ -53,6 +53,9 @@ public final class CosmeticSync {
 
     public static int stamp() { return stamp; }
 
+    /** Llego un catalogo nuevo: los demas jugadores se vuelven a resolver (hilo principal). */
+    public static void touch() { stamp++; }
+
     /** Ids de un jugador en el orden de Cosmetics.Type (capa, alas, sombrero, mascota), o null si no lo conocemos. */
     public static String[] idsOf(String name) {
         return name == null ? null : REMOTE.get(name.toLowerCase(Locale.ROOT));
@@ -73,11 +76,33 @@ public final class CosmeticSync {
             JsonObject b = new JsonObject();
             for (Cosmetics.Type t : Cosmetics.Type.values()) {
                 Cosmetics.Item i = Cosmetics.selected(t);
+                // eleccion que aun espera al catalogo: no se manda (el servicio conserva el campo que no viene)
+                if (i == null && Cosmetics.pendingId(t) != null) continue;
                 b.addProperty(t.key(), i == null ? "none" : i.id);
             }
             final int sent = rev;
             POOL.execute(() -> {
-                try { SocialClient.post("/cosmetics/set", b); if (sent == rev) dirty = false; selfKnown = true; }
+                try {
+                    JsonObject res = SocialClient.post("/cosmetics/set", b);
+                    if (sent == rev) dirty = false;
+                    selfKnown = true;
+                    // el servicio no dejo guardar algo privado: se quita de tu seleccion y se avisa
+                    final List<String[]> denied = new ArrayList<>();
+                    if (res.has("denied") && res.get("denied").isJsonArray()) {
+                        for (JsonElement el : res.getAsJsonArray("denied")) {
+                            if (!el.isJsonObject()) continue;
+                            String ty = str(el.getAsJsonObject(), "type"), id = str(el.getAsJsonObject(), "id");
+                            if (ty != null && id != null) denied.add(new String[] {ty, id});
+                        }
+                    }
+                    if (!denied.isEmpty()) {
+                        mc.execute(() -> {
+                            for (String[] d : denied) {
+                                for (Cosmetics.Type t : Cosmetics.Type.values()) if (t.key().equals(d[0])) Cosmetics.denied(t, d[1]);
+                            }
+                        });
+                    }
+                }
                 catch (Exception e) { lastPush = System.currentTimeMillis() + 11000; /* reintenta en ~15 s */ }
                 finally { PUSHING.set(false); }
             });

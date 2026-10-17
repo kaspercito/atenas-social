@@ -2,6 +2,7 @@ package com.atenas.social.cosmetics;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
+import net.minecraft.Util;
 import com.mojang.math.Axis;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.model.geom.ModelLayerLocation;
@@ -173,6 +174,40 @@ public final class PetRender {
         return Double.NaN;
     };
 
+    // ------------------------------------------------------------------ vista previa (sin mundo)
+    private static final Map<PetSpec.Kind, Model> PREVIEW_MODELS = new HashMap<>();
+    private static PetBrain previewBrain;
+    private static long previewLast;
+    private static final PetBrain.Ground FLAT = (x, z, fromY) -> 0.0;
+
+    /**
+     * Mascota de la vista previa del menu de cosmeticos: se queda en su sitio (el menu la pone a un lado del jugador) y mueve cola y orejas
+     * con la misma IA de siempre. El PoseStack debe estar en el marco del jugador sin escalar (pies en el origen, y hacia arriba).
+     */
+    static void renderPreview(PoseStack ps, MultiBufferSource buf, Cosmetics.Item item, int light) {
+        if (item == null) return;
+        PetSpec.Kind k = PetSpec.kindFor(item.modelId());
+        Model m = PREVIEW_MODELS.get(k);
+        if (m == null) {
+            ModelLayerLocation loc = LAYERS[0];
+            for (int i = 0; i < KINDS.length; i++) if (KINDS[i] == k) loc = LAYERS[i];
+            m = new Model(k, Minecraft.getInstance().getEntityModels().bakeLayer(loc));
+            PREVIEW_MODELS.put(k, m);
+        }
+        if (previewBrain == null) { previewBrain = new PetBrain(12345L); previewLast = Util.getMillis(); }
+        long now = Util.getMillis();
+        int steps = 0;
+        while (now - previewLast >= 50L && steps < 5) { previewBrain.tick(0.0, 0.0, 0.0, 0f, false, FLAT); previewLast += 50L; steps++; }
+        if (now - previewLast >= 50L) previewLast = now; // se atraso mucho (menu cerrado un rato): no recuperar de golpe
+        float pt = Math.max(0f, Math.min(1f, (now - previewLast) / 50f));
+        ps.pushPose();
+        ps.scale(-PetSpec.SCALE, -PetSpec.SCALE, PetSpec.SCALE);
+        ps.translate(0f, -1.501f, 0f);
+        VertexConsumer vc = buf.getBuffer(RenderType.entityCutoutNoCull(item.texture));
+        m.render(previewBrain, pt, ps, vc, light);
+        ps.popPose();
+    }
+
     // ------------------------------------------------------------------ eventos
     /** Una vez por tick del juego (20 por segundo), con el juego en marcha. */
     @SubscribeEvent
@@ -217,7 +252,7 @@ public final class PetRender {
             PetBrain b = pet.brain;
             double x = b.ix(pt), y = b.iy(pt), z = b.iz(pt);
             int light = LevelRenderer.getLightColor(mc.level, BlockPos.containing(x, y + 0.5, z));
-            Model model = modelFor(PetSpec.kindFor(pet.item.id));
+            Model model = modelFor(PetSpec.kindFor(pet.item.modelId()));
             ResourceLocation tex = pet.item.texture;
             RenderType type = RenderType.entityCutoutNoCull(tex);
             used.add(type);

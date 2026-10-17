@@ -207,7 +207,7 @@ public final class CosmeticRender {
             ps.mulPose(Axis.YP.rotationDegrees(180.0F - sway / 2.0F));
 
             boolean anim = item.frames > 1;
-            int frames = anim ? Cosmetics.ANIM_FRAMES : 1;
+            int frames = anim ? item.frames : 1;
             int frame = anim ? Cosmetics.frameOf(item) % frames : 0;
             VertexConsumer vc = buf.getBuffer(RenderType.entityCutoutNoCull(item.texture));
             sink.begin(vc, ps.last(), light(item, light));
@@ -219,7 +219,7 @@ public final class CosmeticRender {
     }
 
     /** Entrega los vértices de {@link WingMesh} a un VertexConsumer (formato de entidad: posición, color, textura, overlay, luz, normal). */
-    private static final class VertexSink implements WingMesh.Sink {
+    static final class VertexSink implements WingMesh.Sink {
         VertexConsumer vc;
         PoseStack.Pose pose;
         int light;
@@ -241,6 +241,7 @@ public final class CosmeticRender {
      */
     public static final class WingsLayer extends Base {
         private final WingMesh mesh = new WingMesh();
+        private final MembraneWing membrane = new MembraneWing();
         private final VertexSink sink = new VertexSink();
         /** Estado por jugador: la fase del aleteo nunca se detiene y la mezcla suelo/aire es gradual. */
         private static final class State { float air, phase; long last; }
@@ -275,16 +276,20 @@ public final class CosmeticRender {
             // Con capa: las alas nacen a los lados de la capa (outset) y se abren más hacia los lados que hacia atrás, así no la tapan.
             boolean cape = Cosmetics.of(p, Cosmetics.Type.CAPE) != null;
             if (cape) open *= 0.80F;
+            open *= item.openMul; // cada cosmético puede abrir más o menos (por defecto 1)
             mesh.outset = cape ? 1.2F : 0F; // casi pegadas a la columna: nacen detrás de la capa, no separadas
             mesh.zoff = cape ? 2.0F : 0F;
-            if (p.isCrouching()) open = cape ? 0.9F : 1.15F;
+            membrane.outset = mesh.outset;
+            membrane.zoff = mesh.zoff;
+            if (p.isCrouching()) open = (cape ? 0.9F : 1.15F) * item.openMul;
             float flap = 0.025F + 0.075F * a; // siempre ondulan un poco; más en el aire
 
             ps.pushPose();
             getParentModel().body.translateAndRotate(ps);
             VertexConsumer vc = buf.getBuffer(RenderType.entityCutoutNoCull(item.texture));
             sink.begin(vc, ps.last(), light(item, light));
-            mesh.emit(sink, open, st.phase, flap, segs, twoSided, 0.0625F);
+            if (item.membrane) membrane.emit(sink, open, st.phase, flap, twoSided, 0.0625F);
+            else mesh.emit(sink, open, st.phase, flap, segs, twoSided, 0.0625F);
             sink.vc = null;
             ps.popPose();
         }
@@ -297,7 +302,7 @@ public final class CosmeticRender {
         public HatLayer(RenderLayerParent<AbstractClientPlayer, PlayerModel<AbstractClientPlayer>> parent, EntityModelSet set) {
             super(parent);
             ModelPart root = set.bakeLayer(HATS);
-            for (Cosmetics.Item it : Cosmetics.of(Cosmetics.Type.HAT)) hats.put(it.id, root.getChild(it.id));
+            for (Cosmetics.Item it : Cosmetics.of(Cosmetics.Type.HAT)) if (!it.custom) hats.put(it.id, root.getChild(it.id));
         }
 
         @Override
@@ -306,12 +311,12 @@ public final class CosmeticRender {
             if (p.isInvisible()) return;
             Cosmetics.Item item = Cosmetics.of(p, Cosmetics.Type.HAT);
             if (item == null) return;
-            ModelPart part = hats.get(item.id);
+            ModelPart part = hats.get(item.modelId());
             if (part == null) return;
 
             ps.pushPose();
             getParentModel().head.translateAndRotate(ps);
-            if (item.id.equals("halo")) ps.translate(0.0D, Mth.sin(age * 0.08F) * 0.025D, 0.0D);
+            if (item.modelId().equals("halo")) ps.translate(0.0D, Mth.sin(age * 0.08F) * 0.025D, 0.0D);
             VertexConsumer vc = buf.getBuffer(RenderType.entityCutoutNoCull(item.texture));
             part.render(ps, vc, light(item, light), OverlayTexture.NO_OVERLAY);
             ps.popPose();

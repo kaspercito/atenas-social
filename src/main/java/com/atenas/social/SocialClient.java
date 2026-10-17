@@ -24,6 +24,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
+import net.minecraft.client.Minecraft;
 
 /**
  * Cliente del servicio social de Atenas (el mismo Worker del launcher y del cliente 1.8.9).
@@ -49,6 +50,11 @@ public final class SocialClient {
         public int unread;
     }
     public interface Callback<T> { void done(T value, String error); }
+    /** Error que devolvió el servicio (con su código, p. ej. verify_required). Un IOException normal es un fallo de red. */
+    public static final class ApiError extends IOException {
+        public final String code;
+        public ApiError(String code, String message) { super(message); this.code = code; }
+    }
 
     public static volatile Supplier<String> nameSupplier = () -> "";
     /** Clave del chat abierto (para no avisar de mensajes que ya estás viendo). */
@@ -57,6 +63,11 @@ public final class SocialClient {
     private static String url = DEFAULT_URL;
     private static String token = "";
     private static boolean identityLoaded;
+    /** Nick (en minúsculas) que ya demostró con Mojang que su cuenta premium es suya, y último intento que no se pudo verificar. */
+    private static String verifiedFor = "";
+    private static String failedFor = "";
+    private static long failedAt;
+    private static final long RETRY_UNVERIFIED_MS = 30L * 60L * 1000L;
     private static volatile Snapshot snap;
     private static volatile String status = "loading"; // loading | ok | error | noaccount
     private static volatile String error = "";
@@ -86,11 +97,16 @@ public final class SocialClient {
     }
 
     // ---------------------------------------------------------------- identidad compartida
-    private static File identityFile() {
+    /** Carpeta de Atenas (la misma que usan el launcher y el cliente 1.8.9). */
+    public static File root() {
         String home = System.getenv("ATENAS_HOME");
-        File root = (home != null && !home.isEmpty()) ? new File(home) : new File(System.getProperty("user.home"), ".atenasclient");
-        return new File(root, "social.json");
+        return (home != null && !home.isEmpty()) ? new File(home) : new File(System.getProperty("user.home"), ".atenasclient");
     }
+
+    /** Direccion del servicio (sin barra final). */
+    public static String baseUrl() { loadIdentity(); return url; }
+
+    private static File identityFile() { return new File(root(), "social.json"); }
 
     private static synchronized void loadIdentity() {
         if (identityLoaded) return;
@@ -127,7 +143,58 @@ public final class SocialClient {
         }
     }
 
+    /** True si esta cuenta ya demostró con Mojang que es premium y suya (los cosméticos privados lo exigen). */
+    public static synchronized boolean verified() { return myName().equalsIgnoreCase(verifiedFor); }
+
+    /**
+     * Verificación premium: pide un desafío al servicio, lo registra en Mojang con TU sesión (joinServer, solo el dueño de la
+     * cuenta puede) y el servicio lo comprueba con Mojang (hasJoined). Con una cuenta sin conexión Mojang lo rechaza y la cuenta
+     * queda sin verificar (todo funciona, menos los cosméticos privados). Nunca lanza: si falla, el servicio la trata como no verificada.
+     */
+    private static synchronized void ensureVerified(boolean force) {
+        String name = myName().toLowerCase();
+        if (!force && name.equals(verifiedFor)) return;
+        if (!force && name.equals(failedFor) && System.currentTimeMillis() - failedAt < RETRY_UNVERIFIED_MS) return;
+        try {
+            JsonObject ch = rawPost("/auth/challenge", new JsonObject());
+            Minecraft mc = Minecraft.getInstance();
+            try {
+                mc.getMinecraftSessionService().joinServer(mc.getUser().getGameProfile(), mc.getUser().getAccessToken(), str(ch, "serverId"));
+            } catch (Exception e) {
+                failedFor = name; failedAt = System.currentTimeMillis(); // Mojang no aceptó la sesión: cuenta sin conexión o sesión caducada
+                return;
+            }
+            rawPost("/auth/verify", new JsonObject());
+            verifiedFor = name;
+            failedFor = "";
+        } catch (ApiError e) {
+            if (!"mojang_down".equals(e.code) && !"too_many".equals(e.code) && !"no_challenge".equals(e.code) && !"server".equals(e.code)) {
+                failedFor = name; failedAt = System.currentTimeMillis(); // el servicio dijo que no: se reintenta más tarde
+            }
+        } catch (IOException e) {
+            // sin internet: se reintenta en la próxima llamada
+        }
+    }
+
+    /** POST al servicio. Lanza IOException con mensaje legible (ApiError si la respuesta vino del servicio). */
     public static JsonObject post(String route, JsonObject body) throws IOException {
+        loadIdentity();
+        String name = myName();
+        if (!validName(name)) throw new IOException("Tu nick no es válido para el servicio de amigos.");
+        ensureVerified(false);
+        try {
+            return rawPost(route, body);
+        } catch (ApiError e) {
+            // este nick está verificado desde otra instalación y esta aún no: se demuestra con la sesión de Minecraft y se reintenta una vez
+            if (!"verify_required".equals(e.code)) throw e;
+            synchronized (SocialClient.class) { verifiedFor = ""; failedFor = ""; }
+            ensureVerified(true);
+            if (!verified()) throw e;
+            return rawPost(route, body);
+        }
+    }
+
+    private static JsonObject rawPost(String route, JsonObject body) throws IOException {
         loadIdentity();
         String name = myName();
         if (!validName(name)) throw new IOException("Tu nick no es válido para el servicio de amigos.");
@@ -151,6 +218,7 @@ public final class SocialClient {
         try { o = JsonParser.parseString(res).getAsJsonObject(); } catch (Exception ignored) { }
         if (o == null || code >= 400 || (o.has("ok") && !o.get("ok").getAsBoolean())) {
             String msg = (o != null && o.has("message")) ? o.get("message").getAsString() : "El servicio respondió con error " + code + ".";
+            if (o != null && o.has("error")) throw new ApiError(o.get("error").getAsString(), msg);
             throw new IOException(msg);
         }
         return o;

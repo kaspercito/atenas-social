@@ -1,5 +1,6 @@
 package com.atenas.social;
 
+import com.atenas.social.cosmetics.CatalogSync;
 import com.atenas.social.cosmetics.CosmeticRender;
 import com.atenas.social.cosmetics.CosmeticSync;
 import com.atenas.social.cosmetics.CosmeticsScreen;
@@ -101,7 +102,7 @@ public final class ClientInit {
         if (mc.getUser() == null) return;
         SocialClient.nameSupplier = () -> mc.getUser().getName();
         ticks++;
-        if (ticks % 20 == 0) CosmeticSync.tick(mc);
+        if (ticks % 20 == 0) { CosmeticSync.tick(mc); CatalogSync.tick(mc); }
         if (ticks % 10 == 0) Badge.updateTab(mc);
         if (ticks % 10 != 0) return; // cada medio segundo
         boolean inGame = mc.player != null;

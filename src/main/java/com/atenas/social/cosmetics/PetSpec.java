@@ -78,7 +78,7 @@ public final class PetSpec {
     /** Modelo de cada mascota segun su id (las texturas e iconos se llaman igual que el id). */
     public static Kind kindFor(String id) {
         if ("husky".equals(id)) return HUSKY;
-        if ("gato".equals(id) || "gatonegro".equals(id)) return CAT;
+        if ("gato".equals(id) || "gatonegro".equals(id) || "catalina".equals(id)) return CAT;
         if ("zorro".equals(id)) return FOX;
         return DOG; // perro, dalmata y cualquier id nuevo
     }

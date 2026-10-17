@@ -1,0 +1,181 @@
+package com.atenas.social.cosmetics;
+
+import com.mojang.blaze3d.platform.Lighting;
+import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.blaze3d.vertex.VertexConsumer;
+import com.mojang.math.Axis;
+import net.minecraft.Util;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.model.PlayerModel;
+import net.minecraft.client.model.geom.ModelLayers;
+import net.minecraft.client.model.geom.ModelPart;
+import net.minecraft.client.player.AbstractClientPlayer;
+import net.minecraft.client.player.DefaultPlayerSkin;
+import net.minecraft.client.renderer.LightTexture;
+import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.client.renderer.RenderType;
+import net.minecraft.client.renderer.texture.OverlayTexture;
+import net.minecraft.resources.ResourceLocation;
+import org.joml.Matrix4f;
+
+import java.util.HashMap;
+import java.util.Map;
+import java.util.UUID;
+
+/**
+ * Vista previa de los cosmeticos SIN mundo (menu principal): un maniqui hecho solo con el modelo del jugador (no hay entidad ni
+ * ClientLevel, asi que no depende de que haya partida abierta). Gira solo para que se vean la capa y las alas, que van a la espalda.
+ * Usa las mismas mallas y la misma geometria que las capas del juego ({@link CosmeticRender}); lo que cambia es que aqui el
+ * movimiento es fijo (un balanceo suave). Con partida abierta el menu sigue usando al jugador real.
+ */
+final class CosmeticPreview {
+    private static PlayerModel<AbstractClientPlayer> modelDefault, modelSlim;
+    private static final Map<String, ModelPart> HATS = new HashMap<>();
+    private static ModelPart hatRoot;
+    private static final CapeMesh CAPE = new CapeMesh();
+    private static final WingMesh WINGS = new WingMesh();
+    private static final MembraneWing MEMBRANE = new MembraneWing();
+    private static final CosmeticRender.VertexSink SINK = new CosmeticRender.VertexSink();
+
+    private static ResourceLocation skin;
+    private static boolean slim;
+
+    private CosmeticPreview() {}
+
+    private static void resolve(Minecraft mc) {
+        if (modelDefault == null) {
+            modelDefault = new PlayerModel<>(mc.getEntityModels().bakeLayer(ModelLayers.PLAYER), false);
+            modelSlim = new PlayerModel<>(mc.getEntityModels().bakeLayer(ModelLayers.PLAYER_SLIM), true);
+        }
+        if (skin == null) {
+            // sin partida no hay datos del jugador en el servidor: se usa el aspecto por defecto de la cuenta (Steve / Alex)
+            UUID id = mc.getUser() != null && mc.getUser().getProfileId() != null ? mc.getUser().getProfileId() : UUID.randomUUID();
+            skin = DefaultPlayerSkin.getDefaultSkin(id);
+            slim = "slim".equals(DefaultPlayerSkin.getSkinModelName(id));
+        }
+        if (hatRoot == null) hatRoot = mc.getEntityModels().bakeLayer(CosmeticRender.HATS);
+    }
+
+    private static ModelPart hat(String id) {
+        ModelPart p = HATS.get(id);
+        if (p == null) {
+            try { p = hatRoot.getChild(id); } catch (RuntimeException e) { return null; }
+            HATS.put(id, p);
+        }
+        return p;
+    }
+
+    /**
+     * Dibuja el maniqui con lo que tienes elegido. (cx, feetY) = pies en pantalla; scale = pixeles por bloque (vanilla usa 42 en el menu).
+     * Lanza excepcion si algo del juego no coopera: quien llama debe atraparla y mostrar el texto de respaldo.
+     */
+    static void draw(GuiGraphics g, int cx, int feetY, int scale) {
+        Minecraft mc = Minecraft.getInstance();
+        resolve(mc);
+        PlayerModel<AbstractClientPlayer> m = slim ? modelSlim : modelDefault;
+        long ms = Util.getMillis();
+        float age = ms / 50f;                           // "ageInTicks"
+        float spin = (ms % 9000L) / 9000f * 360f;       // una vuelta cada 9 s
+
+        // pose suave: brazos que se balancean un poco
+        float sw = (float) Math.sin(age * 0.07f) * 0.06f;
+        m.head.xRot = 0f; m.head.yRot = 0f; m.head.zRot = 0f;
+        m.rightArm.xRot = sw; m.leftArm.xRot = -sw;
+        m.rightArm.zRot = 0.05f; m.leftArm.zRot = -0.05f;
+        m.hat.copyFrom(m.head);
+        m.leftSleeve.copyFrom(m.leftArm); m.rightSleeve.copyFrom(m.rightArm);
+        m.leftPants.copyFrom(m.leftLeg); m.rightPants.copyFrom(m.rightLeg);
+        m.jacket.copyFrom(m.body);
+
+        PoseStack ps = g.pose();
+        MultiBufferSource.BufferSource buf = g.bufferSource();
+        int light = LightTexture.FULL_BRIGHT;
+
+        ps.pushPose();
+        ps.translate((double) cx, (double) feetY, 50.0);
+        ps.mulPoseMatrix(new Matrix4f().scaling((float) scale, (float) scale, (float) -scale));
+        ps.mulPose(Axis.ZP.rotationDegrees(180f));
+        Lighting.setupForEntityInInventory();
+
+        // mascota: a un lado, en el marco "y hacia arriba" (igual que PetRender)
+        Cosmetics.Item pet = Cosmetics.selected(Cosmetics.Type.PET);
+        if (pet != null) {
+            ps.pushPose();
+            ps.mulPose(Axis.YP.rotationDegrees(spin));
+            ps.translate(0.95, 0.0, 0.0);
+            PetRender.renderPreview(ps, buf, pet, light);
+            ps.popPose();
+        }
+
+        // jugador: mismo marco que LivingEntityRenderer (giro, escala -1,-1,1 y pies en y = 1.501)
+        ps.mulPose(Axis.YP.rotationDegrees(spin));
+        ps.scale(-1f, -1f, 1f);
+        ps.translate(0f, -1.501f, 0f);
+
+        VertexConsumer body = buf.getBuffer(RenderType.entityCutoutNoCull(skin));
+        m.renderToBuffer(ps, body, light, OverlayTexture.NO_OVERLAY, 1f, 1f, 1f, 1f);
+
+        Cosmetics.Item cape = Cosmetics.selected(Cosmetics.Type.CAPE);
+        Cosmetics.Item wings = Cosmetics.selected(Cosmetics.Type.WINGS);
+        Cosmetics.Item hat = Cosmetics.selected(Cosmetics.Type.HAT);
+
+        if (cape != null) drawCape(ps, buf, cape, age, light);
+        if (wings != null) drawWings(ps, buf, m, wings, cape != null, age, light);
+        if (hat != null) {
+            ModelPart part = hat(hat.modelId());
+            if (part != null) {
+                ps.pushPose();
+                m.head.translateAndRotate(ps);
+                if (hat.modelId().equals("halo")) ps.translate(0.0, Math.sin(age * 0.08f) * 0.025, 0.0);
+                part.render(ps, buf.getBuffer(RenderType.entityCutoutNoCull(hat.texture)), hat.glow ? LightTexture.FULL_BRIGHT : light, OverlayTexture.NO_OVERLAY);
+                ps.popPose();
+            }
+        }
+
+        g.flush();
+        ps.popPose();
+        Lighting.setupFor3DItems();
+    }
+
+    /** Igual que CosmeticRender.CapeLayer con el jugador quieto (un balanceo suave en lugar de la fisica real). */
+    private static void drawCape(PoseStack ps, MultiBufferSource buf, Cosmetics.Item item, float age, int light) {
+        ps.pushPose();
+        ps.translate(0.0, 0.0, 0.135);
+        float swing = 4f + (float) Math.sin(age * 0.06f) * 3f;
+        float sway = (float) Math.sin(age * 0.035f) * 6f;
+        float tilt = swing / 2f;
+        ps.mulPose(Axis.XP.rotationDegrees(6.0f + tilt * 0.35f));
+        ps.mulPose(Axis.ZP.rotationDegrees(sway / 4.0f));
+        ps.mulPose(Axis.YP.rotationDegrees(180.0f - sway / 2.0f));
+        boolean anim = item.frames > 1;
+        int frames = anim ? item.frames : 1;
+        int frame = anim ? Cosmetics.frameOf(item) % frames : 0;
+        VertexConsumer vc = buf.getBuffer(RenderType.entityCutoutNoCull(item.texture));
+        SINK.begin(vc, ps.last(), item.glow ? LightTexture.FULL_BRIGHT : light);
+        CAPE.emit(SINK, frame, frames, 0.0625F, (float) Math.toRadians(tilt * 0.65f), CapeWave.ampFor(swing), age, (float) Math.toRadians(sway / 4.0f));
+        SINK.vc = null;
+        ps.popPose();
+    }
+
+    /** Igual que CosmeticRender.WingsLayer en el suelo (respiro leve), con las dos mallas (plumas y membrana). */
+    private static void drawWings(PoseStack ps, MultiBufferSource buf, PlayerModel<AbstractClientPlayer> m, Cosmetics.Item item, boolean cape, float age, int light) {
+        float phase = age * 0.35f;
+        float open = 0.85f + (float) Math.sin(phase * 0.2f) * 0.05f;
+        if (cape) open *= 0.80f;
+        open *= item.openMul;
+        float outset = cape ? 1.2f : 0f, zoff = cape ? 2.0f : 0f;
+        WINGS.outset = outset; WINGS.zoff = zoff;
+        MEMBRANE.outset = outset; MEMBRANE.zoff = zoff;
+        float flap = 0.025f;
+
+        ps.pushPose();
+        m.body.translateAndRotate(ps);
+        VertexConsumer vc = buf.getBuffer(RenderType.entityCutoutNoCull(item.texture));
+        SINK.begin(vc, ps.last(), item.glow ? LightTexture.FULL_BRIGHT : light);
+        if (item.membrane) MEMBRANE.emit(SINK, open, phase, flap, true, 0.0625F);
+        else WINGS.emit(SINK, open, phase, flap, WingMesh.MAX_SEGS, true, 0.0625F);
+        SINK.vc = null;
+        ps.popPose();
+    }
+}

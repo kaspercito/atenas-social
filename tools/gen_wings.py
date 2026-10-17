@@ -207,8 +207,9 @@ def cape_frame(face):
     side = outer.crop((0, 0, CS, FH)); tex.paste(side, (0, 1 * CS)); tex.paste(side, (11 * CS, 1 * CS))
     return tex
 
-ANIM = {"llamas": (f_llamas, 12), "aurora": (f_aurora, 12), "cosmos": (f_cosmos, 12),
-        "lluvia": (f_lluvia, 12), "mareas": (f_mareas, 12), "pulso": (f_pulso, 12)}
+# "cosmos" y "lluvia" ya no se generan: no estan registradas en Cosmetics.java (eran texturas sin usar que solo pesaban)
+ANIM = {"llamas": (f_llamas, 12), "aurora": (f_aurora, 12),
+        "mareas": (f_mareas, 12), "pulso": (f_pulso, 12)}
 for name, (fn, N) in ANIM.items():
     strip = Image.new("RGBA", (64 * CS, 32 * CS * N), (0, 0, 0, 0))
     for k in range(N):

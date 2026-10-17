@@ -24,8 +24,16 @@ public final class Badge {
         return CosmeticSync.idsOf(name.toLowerCase(Locale.ROOT)) != null;
     }
 
-    private static MutableComponent glyph() {
-        return Component.literal(GLYPH + " ").withStyle(Style.EMPTY.withFont(Ui.BADGE_FONT));
+    /**
+     * Logo + nombre. IMPORTANTE: el logo va en su propio componente y el resto como hermano de un contenedor vacio. Si el nombre
+     * se agregara con append() al propio componente del logo, heredaria su fuente (\"badge\", que solo tiene el logo) y todas las
+     * letras saldrian como cuadros vacios. Ademas se fija la fuente por defecto en el nombre por si ya traia la del logo.
+     */
+    private static MutableComponent withBadge(Component base) {
+        MutableComponent logo = Component.literal(GLYPH + " ").withStyle(Style.EMPTY.withFont(Ui.BADGE_FONT));
+        MutableComponent rest = base.copy();
+        if (Ui.BADGE_FONT.equals(rest.getStyle().getFont())) rest.setStyle(rest.getStyle().withFont(Style.DEFAULT_FONT));
+        return Component.empty().append(logo).append(rest);
     }
 
     @SubscribeEvent
@@ -33,7 +41,7 @@ public final class Badge {
         if (!(e.getEntity() instanceof Player p)) return;
         if (e.getContent().getString().startsWith(GLYPH)) return;
         if (!isUser(p.getGameProfile().getName())) return;
-        e.setContent(glyph().append(e.getContent()));
+        e.setContent(withBadge(e.getContent()));
     }
 
     /** Pone el logo en el nombre del TAB (se repite cada medio segundo porque el servidor puede reponer el nombre). */
@@ -45,7 +53,7 @@ public final class Badge {
             Component cur = info.getTabListDisplayName();
             if (cur != null && cur.getString().startsWith(GLYPH)) continue;
             Component base = cur != null ? cur : PlayerTeam.formatNameForTeam(info.getTeam(), Component.literal(name));
-            info.setTabListDisplayName(glyph().append(base));
+            info.setTabListDisplayName(withBadge(base));
         }
     }
 }

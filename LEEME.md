@@ -17,4 +17,4 @@ Todo en un solo jar (solo cliente, el servidor no lo necesita):
 - **Esta versión nunca se compiló dentro de Minecraft/Forge**: la parte sin Minecraft (`PetSpec`, `PetBrain`, `WingMesh`, `CapeWave`) tiene pruebas en `pruebas-java/` y pasan; el resto se revisó solo por sintaxis. Pruébalo en el juego antes de repartirlo (ver lista en `PENDIENTE.md`).
 
 ## Capas y alas (regenerar texturas)
-`python3 tools/gen_wings.py` (Pillow + numpy) regenera las alas y las 6 capas animadas (12 fotogramas, tira vertical) y sus iconos. Para una capa animada nueva: PNG de 256x1536 (12 fotogramas de 256x128) en `capes/`, icono `cape_<id>.png` y una línea `addAnim(...)` en `Cosmetics.java`.
+`python3 tools/gen_wings.py` (Pillow + numpy) regenera las alas y 4 capas animadas (llamas, aurora, mareas, pulso) (12 fotogramas, tira vertical) y sus iconos. Para una capa animada nueva: PNG de 256x1536 (12 fotogramas de 256x128) en `capes/`, icono `cape_<id>.png` y una línea `addAnim(...)` en `Cosmetics.java`.

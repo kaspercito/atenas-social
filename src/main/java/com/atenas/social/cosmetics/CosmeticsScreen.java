@@ -10,13 +10,15 @@ import net.minecraft.network.chat.Component;
 import java.util.ArrayList;
 import java.util.List;
 
-/** Elegir capa, alas y sombrero. Con un mundo abierto te ves puesto en vivo. */
+/** Elegir capa, alas, sombrero y mascota. Te ves puesto en vivo: con un mundo abierto con tu jugador, y sin mundo con un maniqui que gira ({@link CosmeticPreview}). */
 public class CosmeticsScreen extends Screen {
     private static final int CW = 62, CH = 58, GAP = 6, PREVIEW_W = 118;
 
     private final Screen parent;
     private Cosmetics.Type tab = Cosmetics.Type.CAPE;
     private int px, py, pw, ph, gx, gy, gw, gh, scroll;
+    /** La vista previa sin mundo fallo una vez (algo del juego no coopero): se muestra el texto de respaldo y no se reintenta. */
+    private boolean previewFailed;
 
     public CosmeticsScreen(Screen parent) {
         super(Component.literal("Cosm\u00e9ticos"));
@@ -53,7 +55,7 @@ public class CosmeticsScreen extends Screen {
     private List<Cosmetics.Item> entries() {
         List<Cosmetics.Item> l = new ArrayList<>();
         l.add(null); // "Ninguno"
-        l.addAll(Cosmetics.of(tab));
+        l.addAll(Cosmetics.visible(tab)); // sin los privados ajenos (ej. Catalina)
         return l;
     }
 
@@ -93,7 +95,9 @@ public class CosmeticsScreen extends Screen {
         g.fill(px, py, px + pw, py + ph, 0xF00E0C20);
         g.fill(px, py, px + pw, py + 2, Ui.ACCENT);
         g.drawString(font, "COSM\u00c9TICOS", px + 8, py + 8, Ui.TEXT, false);
-        g.drawString(font, "Los ven todos los que usan Atenas", px + 8 + font.width("COSM\u00c9TICOS") + 8, py + 8, Ui.MUTED, false);
+        boolean warn = !Cosmetics.notice.isEmpty() && System.currentTimeMillis() < Cosmetics.noticeUntil;
+        g.drawString(font, font.plainSubstrByWidth(warn ? Cosmetics.notice : "Los ven todos los que usan Atenas", pw - font.width("COSM\u00c9TICOS") - 24),
+            px + 8 + font.width("COSM\u00c9TICOS") + 8, py + 8, warn ? 0xFFFFB454 : Ui.MUTED, false);
 
         // pesta\u00f1as resaltadas
         // (los botones ya se dibujan solos; subrayamos la activa)
@@ -130,12 +134,27 @@ public class CosmeticsScreen extends Screen {
         g.fill(rx, ry, rx + rw, ry + rh, Ui.NIGHT);
         Ui.border(g, rx, ry, rw, rh, Ui.LINE);
         Minecraft mc = Minecraft.getInstance();
+        int cx = rx + rw / 2, feet = ry + rh - 22;
         if (mc.player != null && mc.level != null) {
-            int cx = rx + rw / 2, feet = ry + rh - 22;
             InventoryScreen.renderEntityInInventoryFollowsMouse(g, cx, feet, 42, cx - mx, feet - 66 - my, mc.player);
         } else {
-            g.drawCenteredString(font, "Entra a un mundo", rx + rw / 2, ry + rh / 2 - 14, Ui.TEXT);
-            g.drawCenteredString(font, "para verte puesto", rx + rw / 2, ry + rh / 2 - 3, Ui.MUTED);
+            boolean drawn = false;
+            if (!previewFailed) {
+                g.enableScissor(rx + 1, ry + 1, rx + rw - 1, ry + rh - 1);
+                try {
+                    CosmeticPreview.draw(g, cx, feet, 42);
+                    drawn = true;
+                } catch (Throwable t) {
+                    previewFailed = true;
+                    System.err.println("[AtenasSocial] vista previa sin mundo: " + t);
+                } finally {
+                    g.disableScissor();
+                }
+            }
+            if (!drawn) {
+                g.drawCenteredString(font, "Entra a un mundo", rx + rw / 2, ry + rh / 2 - 14, Ui.TEXT);
+                g.drawCenteredString(font, "para verte puesto", rx + rw / 2, ry + rh / 2 - 3, Ui.MUTED);
+            }
         }
         int ly = ry + rh - 12;
         StringBuilder sb = new StringBuilder();
