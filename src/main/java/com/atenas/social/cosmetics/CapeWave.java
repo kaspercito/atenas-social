@@ -7,8 +7,8 @@ package com.atenas.social.cosmetics;
 public final class CapeWave {
     private CapeWave() {}
 
-    /** Tiras de la capa: la capa mide 16 de alto, cada tira 2. */
-    public static final int SEGS = 8;
+    /** Filas de la capa: la capa mide 16 de alto, cada fila 1 (16 filas comparten vertices, ver CapeModel: sin cortes entre ellas). */
+    public static final int SEGS = 16;
     public static final int SEG_H = 16 / SEGS;
 
     /**
@@ -23,13 +23,14 @@ public final class CapeWave {
      */
     public static void angles(float bend, float amp, float time, float side, float[] rx, float[] rz) {
         float per = bend / (SEGS - 1);
+        float k8 = 8f / SEGS; // la onda se pensó para 8 tiras: con mas filas se reparte para que la tela ondee igual
         rx[0] = 0f;
         rz[0] = 0f;
         for (int i = 1; i < SEGS; i++) {
             float k = (float) i / (SEGS - 1); // 0 arriba, 1 en la punta
-            float wave = (float) Math.sin(time * 0.30f - i * 0.85f) * amp * (0.35f + 0.65f * k);
+            float wave = (float) Math.sin(time * 0.30f - i * 0.85f * k8) * amp * k8 * (0.35f + 0.65f * k);
             rx[i] = per + wave;
-            rz[i] = side / (SEGS - 1) + (float) Math.sin(time * 0.21f - i * 0.6f + 1.3f) * amp * 0.25f * k;
+            rz[i] = side / (SEGS - 1) + (float) Math.sin(time * 0.21f - i * 0.6f * k8 + 1.3f) * amp * 0.25f * k8 * k;
         }
     }
 

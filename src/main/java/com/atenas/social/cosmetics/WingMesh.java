@@ -40,6 +40,8 @@ public final class WingMesh {
     }
 
     public static final float PIVOT_X = 1f, PIVOT_Y = 1f, PIVOT_Z = 2.2f;
+    /** Separación extra (px del modelo) de la raíz de cada ala respecto al centro de la espalda; con capa puesta las alas nacen a sus lados. Lo fija WingsLayer. */
+    public float outset;
     /** Tamaño general de las alas (multiplica largo y ancho de TODAS las plumas; las proporciones de la textura no cambian). */
     public static final float SIZE = 0.85f;
 
@@ -131,6 +133,6 @@ public final class WingMesh {
         // giro de apertura alrededor del eje vertical, en el marco "hacia afuera"
         float Xr = X * co - Z * so;
         float Zr = X * so + Z * co;
-        s.vertex(sx * (PIVOT_X + Xr) * unit, (PIVOT_Y - Y) * unit, (PIVOT_Z + Zr) * unit, u, vv);
+        s.vertex(sx * (PIVOT_X + outset + Xr) * unit, (PIVOT_Y - Y) * unit, (PIVOT_Z + Zr) * unit, u, vv);
     }
 }

@@ -35,9 +35,7 @@ import java.util.Map;
 
 /** Modelos y capas de dibujo de los cosméticos (capa de tela, alas de plumas y sombreros). Las mascotas están en {@link PetRender}. */
 public final class CosmeticRender {
-    public static final ModelLayerLocation CAPE = loc("cape");
     public static final ModelLayerLocation HATS = loc("hats");
-    public static final ModelLayerLocation CAPE_ANIM = loc("cape_anim");
 
     private CosmeticRender() {}
 
@@ -45,8 +43,6 @@ public final class CosmeticRender {
 
     // ------------------------------------------------------------------ registro
     public static void registerDefinitions(EntityRenderersEvent.RegisterLayerDefinitions e) {
-        e.registerLayerDefinition(CAPE, CosmeticRender::capeDef);
-        e.registerLayerDefinition(CAPE_ANIM, CosmeticRender::capeAnimDef);
         PetRender.registerDefinitions(e);
         e.registerLayerDefinition(HATS, CosmeticRender::hatsDef);
     }
@@ -104,41 +100,6 @@ public final class CosmeticRender {
     }
 
     // ------------------------------------------------------------------ definiciones
-    /** Tiras de la capa de tela (ver {@link CapeWave}). */
-    static final int CAPE_SEGS = CapeWave.SEGS;
-
-    /**
-     * Capa de tela: por cada fotograma, una cadena de CAPE_SEGS tiras de 2 de alto que cuelgan una de otra (la pieza "c<f>" es la
-     * de los hombros y de ella cuelgan "s1".."s7"). Textura 64x32 lógica por fotograma (el PNG puede ser más grande); la tira i usa
-     * v = 32*f + 2*i, así su cara cae en las mismas filas que la capa de una sola pieza y cualquier textura se ve igual que antes.
-     * Capa normal = 1 fotograma; capa animada = ANIM_FRAMES (cambiar de fotograma = elegir otra cadena).
-     */
-    private static LayerDefinition capeChain(int frames) {
-        MeshDefinition m = new MeshDefinition();
-        for (int f = 0; f < frames; f++) {
-            PartDefinition parent = m.getRoot();
-            for (int i = 0; i < CAPE_SEGS; i++) {
-                parent = parent.addOrReplaceChild(i == 0 ? "c" + f : "s" + i,
-                    CubeListBuilder.create().texOffs(0, 32 * f + CapeWave.SEG_H * i).addBox(-5f, 0f, -1f, 10f, CapeWave.SEG_H, 1f),
-                    PartPose.offset(0f, i == 0 ? 0f : CapeWave.SEG_H, 0f));
-            }
-        }
-        return LayerDefinition.create(m, 64, 32 * frames);
-    }
-
-    private static LayerDefinition capeDef() { return capeChain(1); }
-
-    private static LayerDefinition capeAnimDef() { return capeChain(Cosmetics.ANIM_FRAMES); }
-
-    /** Las piezas de la cadena del fotograma f, de arriba hacia abajo. */
-    private static ModelPart[] chainOf(ModelPart root, int f) {
-        ModelPart[] out = new ModelPart[CAPE_SEGS];
-        ModelPart cur = root.getChild("c" + f);
-        out[0] = cur;
-        for (int i = 1; i < CAPE_SEGS; i++) { cur = cur.getChild("s" + i); out[i] = cur; }
-        return out;
-    }
-
     private static void hat(PartDefinition root, String id, CubeListBuilder b) { root.addOrReplaceChild(id, b, PartPose.ZERO); }
 
     /**
@@ -205,17 +166,17 @@ public final class CosmeticRender {
         }
     }
 
-    /** Capa de tela propia: mismo movimiento que la de Mojang, un poco más atrás para taparla, pero las tiras se doblan y ondean. */
+    /**
+     * Capa de tela propia: mismo movimiento que la de Mojang, un poco más atrás para taparla, pero la tela es una malla continua
+     * ({@link CapeMesh}) que se curva y ondea sin cortes entre tira y tira.
+     */
     public static final class CapeLayer extends Base {
-        private final ModelPart[][] chains = new ModelPart[Cosmetics.ANIM_FRAMES][];
-        private final ModelPart[] still;
-        private final float[] rx = new float[CAPE_SEGS], rz = new float[CAPE_SEGS];
+        private final CapeMesh mesh = new CapeMesh();
+        private final VertexSink sink = new VertexSink();
+        private final float[] rx = new float[CapeWave.SEGS], rz = new float[CapeWave.SEGS];
 
         public CapeLayer(RenderLayerParent<AbstractClientPlayer, PlayerModel<AbstractClientPlayer>> parent, EntityModelSet set) {
             super(parent);
-            still = chainOf(set.bakeLayer(CAPE), 0);
-            ModelPart anim = set.bakeLayer(CAPE_ANIM);
-            for (int f = 0; f < chains.length; f++) chains[f] = chainOf(anim, f);
         }
 
         @Override
@@ -226,7 +187,7 @@ public final class CosmeticRender {
             if (item == null || !Cosmetics.inRange(p)) return;
 
             ps.pushPose();
-            // con alas puestas la capa va por fuera de ellas (más lejos del cuerpo); si no, las plumas la tapaban
+            // con alas puestas la capa va por fuera de sus raíces (más lejos del cuerpo) y las alas nacen a los lados de la capa
             ps.translate(0.0D, 0.0D, Cosmetics.of(p, Cosmetics.Type.WINGS) != null ? 0.29D : 0.15D);
             double dx = Mth.lerp(pt, p.xCloakO, p.xCloak) - Mth.lerp(pt, p.xo, p.getX());
             double dy = Mth.lerp(pt, p.yCloakO, p.yCloak) - Mth.lerp(pt, p.yo, p.getY());
@@ -245,12 +206,14 @@ public final class CosmeticRender {
             ps.mulPose(Axis.ZP.rotationDegrees(sway / 4.0F));
             ps.mulPose(Axis.YP.rotationDegrees(180.0F - sway / 2.0F));
 
-            ModelPart[] chain = item.frames > 1 ? chains[Cosmetics.frameOf(item) % chains.length] : still;
-            CapeWave.angles((float) Math.toRadians(tilt * 0.65F), CapeWave.ampFor(swing), age, (float) Math.toRadians(sway / 4.0F), rx, rz);
-            for (int i = 0; i < CAPE_SEGS; i++) { chain[i].xRot = rx[i]; chain[i].zRot = rz[i]; }
-
+            boolean anim = item.frames > 1;
+            int frames = anim ? Cosmetics.ANIM_FRAMES : 1;
+            int frame = anim ? Cosmetics.frameOf(item) % frames : 0;
             VertexConsumer vc = buf.getBuffer(RenderType.entityCutoutNoCull(item.texture));
-            chain[0].render(ps, vc, light(item, light), OverlayTexture.NO_OVERLAY);
+            sink.begin(vc, ps.last(), light(item, light));
+            mesh.emit(sink, frame, frames, 0.0625F, (float) Math.toRadians(tilt * 0.65F), CapeWave.ampFor(swing), age,
+                (float) Math.toRadians(sway / 4.0F));
+            sink.vc = null;
             ps.popPose();
         }
     }
@@ -279,6 +242,9 @@ public final class CosmeticRender {
     public static final class WingsLayer extends Base {
         private final WingMesh mesh = new WingMesh();
         private final VertexSink sink = new VertexSink();
+        /** Estado por jugador: la fase del aleteo nunca se detiene y la mezcla suelo/aire es gradual. */
+        private static final class State { float air, phase; long last; }
+        private final Map<Integer, State> states = new HashMap<>();
 
         public WingsLayer(RenderLayerParent<AbstractClientPlayer, PlayerModel<AbstractClientPlayer>> parent, EntityModelSet set) {
             super(parent);
@@ -296,17 +262,28 @@ public final class CosmeticRender {
             int segs = WingMesh.segsFor(d2);
             boolean twoSided = WingMesh.twoSidedFor(d2);
 
-            boolean air = !p.onGround() && !p.isInWater() && !p.isPassenger();
-            float open = air ? 0.50F + Mth.sin(age * 0.55F) * 0.32F : 0.85F + Mth.sin(age * 0.07F) * 0.05F;
-            if (Cosmetics.of(p, Cosmetics.Type.CAPE) != null) open += 0.14F; // más abiertas: se ve la capa entre ellas
-            if (p.isCrouching()) open = 1.15F;
-            float flap = air ? 0.10F : 0F; // en el aire las plumas ondulan; en el suelo quedan quietas
+            boolean airNow = !p.onGround() && !p.isInWater() && !p.isPassenger();
+            if (states.size() > 200) states.clear();
+            State st = states.computeIfAbsent(p.getId(), k -> { State n = new State(); n.last = System.nanoTime(); return n; });
+            long now = System.nanoTime();
+            float dt = Math.min(0.1F, (now - st.last) / 1.0e9F) * 20F; // ticks
+            st.last = now;
+            st.air += ((airNow ? 1F : 0F) - st.air) * Math.min(1F, dt * 0.25F);
+            st.phase += dt * (0.35F + st.air * 0.65F);
+            float a = st.air;
+            float open = (0.85F + Mth.sin(st.phase * 0.2F) * 0.05F) * (1F - a) + (0.50F + Mth.sin(st.phase * 0.55F) * 0.32F) * a;
+            // Con capa: las alas nacen a los lados de la capa (outset) y se abren más hacia los lados que hacia atrás, así no la tapan.
+            boolean cape = Cosmetics.of(p, Cosmetics.Type.CAPE) != null;
+            if (cape) open *= 0.72F;
+            mesh.outset = cape ? 5.5F : 0F;
+            if (p.isCrouching()) open = cape ? 0.9F : 1.15F;
+            float flap = 0.025F + 0.075F * a; // siempre ondulan un poco; más en el aire
 
             ps.pushPose();
             getParentModel().body.translateAndRotate(ps);
             VertexConsumer vc = buf.getBuffer(RenderType.entityCutoutNoCull(item.texture));
             sink.begin(vc, ps.last(), light(item, light));
-            mesh.emit(sink, open, age, flap, segs, twoSided, 0.0625F);
+            mesh.emit(sink, open, st.phase, flap, segs, twoSided, 0.0625F);
             sink.vc = null;
             ps.popPose();
         }

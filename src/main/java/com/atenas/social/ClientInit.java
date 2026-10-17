@@ -37,6 +37,7 @@ public final class ClientInit {
         mod.addListener(CosmeticRender::addLayers);
         MinecraftForge.EVENT_BUS.register(new ClientInit());
         MinecraftForge.EVENT_BUS.register(new PetRender());
+        MinecraftForge.EVENT_BUS.register(new Badge());
     }
 
     private static void registerKeys(RegisterKeyMappingsEvent e) {
@@ -101,6 +102,7 @@ public final class ClientInit {
         SocialClient.nameSupplier = () -> mc.getUser().getName();
         ticks++;
         if (ticks % 20 == 0) CosmeticSync.tick(mc);
+        if (ticks % 10 == 0) Badge.updateTab(mc);
         if (ticks % 10 != 0) return; // cada medio segundo
         boolean inGame = mc.player != null;
         boolean social = mc.screen instanceof SocialScreen;

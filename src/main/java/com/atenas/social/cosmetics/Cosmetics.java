@@ -60,26 +60,15 @@ public final class Cosmetics {
     private static final Map<Type, Item> SELECTED = new EnumMap<>(Type.class);
 
     static {
-        add(Type.CAPE, "atenas", "Atenas", 0xFF8B5CF6, false);
-        add(Type.CAPE, "violeta", "Violeta", 0xFF6D4FC7, false);
-        add(Type.CAPE, "fuego", "Fuego", 0xFFFF6A00, true);
-        add(Type.CAPE, "hielo", "Hielo", 0xFF7FD6FF, false);
-        add(Type.CAPE, "galaxia", "Galaxia", 0xFF7B4DFF, false);
-        add(Type.CAPE, "arcoiris", "Arco\u00edris", 0xFFFF55FF, false);
-        add(Type.CAPE, "esmeralda", "Esmeralda", 0xFF2ECC71, false);
-        add(Type.CAPE, "oceano", "Oc\u00e9ano", 0xFF1E7FD8, false);
-        add(Type.CAPE, "atardecer", "Atardecer", 0xFFFF7A59, false);
-        add(Type.CAPE, "matrix", "Matrix", 0xFF22DD66, true);
-        add(Type.CAPE, "neon", "Ne\u00f3n", 0xFF22D3EE, true);
-        add(Type.CAPE, "oro", "Oro", 0xFFE8B923, false);
-        add(Type.CAPE, "noche", "Noche", 0xFF2B2F6B, false);
-        add(Type.CAPE, "creeper", "Creeper", 0xFF4CAF50, false);
-        addAnim(Type.CAPE, "llamas", "Llamas (anim)", 0xFFFF6A00, true);
-        addAnim(Type.CAPE, "aurora", "Aurora (anim)", 0xFF35E0A8, true);
-        addAnim(Type.CAPE, "cosmos", "Cosmos (anim)", 0xFF7B4DFF, true);
-        addAnim(Type.CAPE, "lluvia", "Lluvia Matrix (anim)", 0xFF22DD66, true);
-        addAnim(Type.CAPE, "mareas", "Mareas (anim)", 0xFF1E9FE8, false);
-        addAnim(Type.CAPE, "pulso", "Pulso Ne\u00f3n (anim)", 0xFFEC4899, true);
+        add(Type.CAPE, "atenas", "Atenas (Exclusiva)", 0xFFF5C542, true);
+        add(Type.CAPE, "atardecer", "Atardecer Lunar", 0xFFFF7A59, false);
+        add(Type.CAPE, "aurora", "Aurora", 0xFF35E0A8, true);
+        add(Type.CAPE, "sakura", "Sakura", 0xFFF8A9C8, false);
+        add(Type.CAPE, "oceano", "Oc\u00e9ano al Atardecer", 0xFF1E7FD8, false);
+        add(Type.CAPE, "bosque", "Bosque Brumoso", 0xFF4F8F72, false);
+        add(Type.CAPE, "galaxia", "Galaxia", 0xFF7B4DFF, true);
+        add(Type.CAPE, "lava", "Monta\u00f1a de Lava", 0xFFFF6A1A, true);
+        add(Type.CAPE, "hielo", "Cristal de Hielo", 0xFF7FD6FF, false);
 
         add(Type.WINGS, "doradas", "Doradas", 0xFFF5C542, false);
         add(Type.WINGS, "oscuras", "Oscuras", 0xFF8E2DE2, false);
@@ -89,6 +78,10 @@ public final class Cosmetics {
         add(Type.WINGS, "hielo", "Hielo", 0xFF9ADCFF, false);
         add(Type.WINGS, "neon", "Ne\u00f3n", 0xFF22D3EE, true);
         add(Type.WINGS, "esmeralda", "Esmeralda", 0xFF2ECC71, false);
+        add(Type.WINGS, "ambar", "\u00c1mbar", 0xFFFF7814, true);
+        add(Type.WINGS, "sakura", "Sakura", 0xFFFFAACD, false);
+        add(Type.WINGS, "aurora", "Aurora", 0xFF28E6AA, true);
+        add(Type.WINGS, "lunar", "Lunares", 0xFF7896E6, false);
         add(Type.WINGS, "demonio", "Demonio", 0xFFC0182A, false);
 
         add(Type.HAT, "halo", "Halo", 0xFFFFE680, true);
