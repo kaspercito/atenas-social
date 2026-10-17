@@ -10,4 +10,4 @@ Todo en un solo jar (solo cliente, el servidor no lo necesita):
 ## Importante
 - Los cosméticos se comparten por el Worker social: **hay que volver a desplegarlo** (`social-worker/`, `npx wrangler deploy`), trae las rutas nuevas `/cosmetics/set` y `/cosmetics/get`.
 - El servidor y el icono los manda el launcher 1.6.0 (`-Datenas.server`, `-Datenas.pack`, `-Datenas.kind`). Sin launcher nuevo no hay ★.
-- Compilar: igual que antes (GitHub Actions, tag `v1.1.0`). Luego Atenas Admin → pack 1.20.1 → Mis .jar.
+- Compilar: igual que antes (GitHub Actions, tag `v1.0.0`). Luego Atenas Admin → pack 1.20.1 → Mis .jar.

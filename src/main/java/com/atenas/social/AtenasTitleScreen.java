@@ -3,7 +3,7 @@ package com.atenas.social;
 import com.atenas.social.cosmetics.CosmeticsScreen;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.gui.components.PanoramaRenderer;
+import net.minecraft.client.renderer.PanoramaRenderer;
 import net.minecraft.client.gui.screens.ConnectScreen;
 import net.minecraft.client.gui.screens.OptionsScreen;
 import net.minecraft.client.gui.screens.Screen;
