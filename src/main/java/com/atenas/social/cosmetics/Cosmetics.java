@@ -60,15 +60,28 @@ public final class Cosmetics {
     private static final Map<Type, Item> SELECTED = new EnumMap<>(Type.class);
 
     static {
-        add(Type.CAPE, "atenas", "Atenas (Exclusiva)", 0xFFF5C542, true);
+        addAnim(Type.CAPE, "atenas", "Atenas (Exclusiva)", 0xFFF5C542, true);
         add(Type.CAPE, "atardecer", "Atardecer Lunar", 0xFFFF7A59, false);
-        add(Type.CAPE, "aurora", "Aurora", 0xFF35E0A8, true);
+        addAnim(Type.CAPE, "aurora", "Aurora", 0xFF35E0A8, true);
         add(Type.CAPE, "sakura", "Sakura", 0xFFF8A9C8, false);
         add(Type.CAPE, "oceano", "Oc\u00e9ano al Atardecer", 0xFF1E7FD8, false);
         add(Type.CAPE, "bosque", "Bosque Brumoso", 0xFF4F8F72, false);
-        add(Type.CAPE, "galaxia", "Galaxia", 0xFF7B4DFF, true);
-        add(Type.CAPE, "lava", "Monta\u00f1a de Lava", 0xFFFF6A1A, true);
+        addAnim(Type.CAPE, "galaxia", "Galaxia", 0xFF7B4DFF, true);
+        addAnim(Type.CAPE, "lava", "Monta\u00f1a de Lava", 0xFFFF6A1A, true);
         add(Type.CAPE, "hielo", "Cristal de Hielo", 0xFF7FD6FF, false);
+        addAnim(Type.CAPE, "llamas", "Llamas", 0xFFFF7A1A, true);
+        addAnim(Type.CAPE, "matrix", "Matrix", 0xFF1BFF5A, true);
+        addAnim(Type.CAPE, "pulso", "Pulso Synthwave", 0xFFFF2DA6, true);
+        addAnim(Type.CAPE, "arcoiris", "Arco\u00edris", 0xFF9B7BFF, true);
+        addAnim(Type.CAPE, "mareas", "Mareas", 0xFF2E6FC4, true);
+        addAnim(Type.CAPE, "eclipse", "Eclipse Solar", 0xFFFFB84D, true);
+        addAnim(Type.CAPE, "tormenta", "Tormenta", 0xFF5B7CFA, true);
+        addAnim(Type.CAPE, "nieve", "Ventisca", 0xFFBFE3FF, true);
+        addAnim(Type.CAPE, "luciernagas", "Luci\u00e9rnagas", 0xFFB8FF4A, true);
+        addAnim(Type.CAPE, "oroliquido", "Oro L\u00edquido", 0xFFFFC83D, true);
+        addAnim(Type.CAPE, "cristal", "Cristal Prisma", 0xFF8FE9FF, true);
+        addAnim(Type.CAPE, "portal", "Portal M\u00edstico", 0xFFB04DFF, true);
+        addAnim(Type.CAPE, "dragon", "Drag\u00f3n", 0xFFD6202A, true);
 
         add(Type.WINGS, "doradas", "Doradas", 0xFFF5C542, false);
         add(Type.WINGS, "oscuras", "Oscuras", 0xFF8E2DE2, false);

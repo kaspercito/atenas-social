@@ -187,8 +187,8 @@ public final class CosmeticRender {
             if (item == null || !Cosmetics.inRange(p)) return;
 
             ps.pushPose();
-            // con alas puestas la capa va por fuera de sus raíces (más lejos del cuerpo) y las alas nacen a los lados de la capa
-            ps.translate(0.0D, 0.0D, Cosmetics.of(p, Cosmetics.Type.WINGS) != null ? 0.29D : 0.15D);
+            // pegada a la espalda (la de Mojang va a 0.125); con alas puestas NO se aleja: las alas nacen detrás de la capa (WingMesh.zoff)
+            ps.translate(0.0D, 0.0D, 0.135D);
             double dx = Mth.lerp(pt, p.xCloakO, p.xCloak) - Mth.lerp(pt, p.xo, p.getX());
             double dy = Mth.lerp(pt, p.yCloakO, p.yCloak) - Mth.lerp(pt, p.yo, p.getY());
             double dz = Mth.lerp(pt, p.zCloakO, p.zCloak) - Mth.lerp(pt, p.zo, p.getZ());
@@ -274,8 +274,9 @@ public final class CosmeticRender {
             float open = (0.85F + Mth.sin(st.phase * 0.2F) * 0.05F) * (1F - a) + (0.50F + Mth.sin(st.phase * 0.55F) * 0.32F) * a;
             // Con capa: las alas nacen a los lados de la capa (outset) y se abren más hacia los lados que hacia atrás, así no la tapan.
             boolean cape = Cosmetics.of(p, Cosmetics.Type.CAPE) != null;
-            if (cape) open *= 0.72F;
-            mesh.outset = cape ? 5.5F : 0F;
+            if (cape) open *= 0.80F;
+            mesh.outset = cape ? 1.2F : 0F; // casi pegadas a la columna: nacen detrás de la capa, no separadas
+            mesh.zoff = cape ? 2.0F : 0F;
             if (p.isCrouching()) open = cape ? 0.9F : 1.15F;
             float flap = 0.025F + 0.075F * a; // siempre ondulan un poco; más en el aire
 

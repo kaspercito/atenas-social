@@ -38,6 +38,9 @@ public final class CosmeticSync {
     private static long lastPush, lastFetch, lastSelf;
     private static String lastNames = "";
 
+    /** Maximo de nombres por peticion /cosmetics/get (el servicio no contesta mas de 40). */
+    private static final int MAX_NAMES = 40;
+
     private CosmeticSync() {}
 
     public static void markDirty() { dirty = true; rev++; lastPush = 0; }
@@ -81,7 +84,7 @@ public final class CosmeticSync {
         }
 
         // Lo TUYO: la primera vez y cada 30 s se baja del servicio, as\u00ed un cambio hecho en 1.8.9 aparece aqu\u00ed.
-        if (!dirty && !PUSHING.get() && now - lastSelf > (selfKnown ? 30000 : 5000) && SELF.compareAndSet(false, true)) {
+        if (!dirty && !PUSHING.get() && now - lastSelf > (selfKnown ? 15000 : 5000) && SELF.compareAndSet(false, true)) {
             lastSelf = now;
             final int seen = rev;
             final String me = SocialClient.myName().toLowerCase(Locale.ROOT);
@@ -108,23 +111,30 @@ public final class CosmeticSync {
         }
 
         if (mc.level == null || mc.player == null) return;
-        List<String> names = new ArrayList<>();
+        // Los cercanos van primero (son los que se dibujan) y el servicio contesta como mucho 40 nombres por peticion:
+        // antes se mandaban hasta 80 ordenados por alfabeto y los ultimos (z...) nunca recibian sus cosmeticos.
+        List<String> near = new ArrayList<>();
         for (AbstractClientPlayer p : mc.level.players()) {
             if (p == mc.player) continue;
             String n = p.getGameProfile().getName();
-            if (SocialClient.validName(n)) names.add(n.toLowerCase(Locale.ROOT));
+            if (SocialClient.validName(n)) near.add(n.toLowerCase(Locale.ROOT));
         }
+        List<String> far = new ArrayList<>();
         if (mc.getConnection() != null) { // tambien los de la lista TAB, para el logo aunque esten lejos
             for (net.minecraft.client.multiplayer.PlayerInfo info : mc.getConnection().getOnlinePlayers()) {
                 String n = info.getProfile().getName();
-                if (n != null && SocialClient.validName(n) && !names.contains(n.toLowerCase(Locale.ROOT))) names.add(n.toLowerCase(Locale.ROOT));
+                String low = n == null ? null : n.toLowerCase(Locale.ROOT);
+                if (low != null && SocialClient.validName(n) && !low.equals(SocialClient.myName().toLowerCase(Locale.ROOT)) && !near.contains(low) && !far.contains(low)) far.add(low);
             }
         }
+        Collections.sort(near);
+        Collections.sort(far);
+        List<String> names = new ArrayList<>(near);
+        names.addAll(far);
         if (names.isEmpty()) return;
-        Collections.sort(names);
-        if (names.size() > 80) names = new ArrayList<>(names.subList(0, 80));
+        if (names.size() > MAX_NAMES) names = new ArrayList<>(names.subList(0, MAX_NAMES));
         String joined = String.join(",", names);
-        if ((joined.equals(lastNames) && now - lastFetch < 25000) || !FETCHING.compareAndSet(false, true)) return;
+        if ((joined.equals(lastNames) && now - lastFetch < 15000) || !FETCHING.compareAndSet(false, true)) return;
         lastNames = joined;
         lastFetch = now;
         final List<String> wanted = names;
