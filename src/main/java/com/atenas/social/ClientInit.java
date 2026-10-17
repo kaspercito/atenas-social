@@ -3,6 +3,7 @@ package com.atenas.social;
 import com.atenas.social.cosmetics.CosmeticRender;
 import com.atenas.social.cosmetics.CosmeticSync;
 import com.atenas.social.cosmetics.CosmeticsScreen;
+import com.atenas.social.cosmetics.PetRender;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.ChatScreen;
@@ -13,6 +14,7 @@ import net.minecraft.client.gui.screens.multiplayer.JoinMultiplayerScreen;
 import net.minecraft.network.chat.Component;
 import net.minecraftforge.client.event.InputEvent;
 import net.minecraftforge.client.event.RegisterKeyMappingsEvent;
+import net.minecraftforge.client.event.RenderGuiEvent;
 import net.minecraftforge.client.event.ScreenEvent;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.TickEvent;
@@ -34,6 +36,7 @@ public final class ClientInit {
         mod.addListener(CosmeticRender::registerDefinitions);
         mod.addListener(CosmeticRender::addLayers);
         MinecraftForge.EVENT_BUS.register(new ClientInit());
+        MinecraftForge.EVENT_BUS.register(new PetRender());
     }
 
     private static void registerKeys(RegisterKeyMappingsEvent e) {
@@ -98,10 +101,30 @@ public final class ClientInit {
         SocialClient.nameSupplier = () -> mc.getUser().getName();
         ticks++;
         if (ticks % 20 == 0) CosmeticSync.tick(mc);
-        if (ticks == 60 || ticks % 240 == 0) {
-            boolean inGame = mc.player != null;
-            String server = (inGame && mc.getCurrentServer() != null) ? mc.getCurrentServer().ip : "";
+        if (ticks % 10 != 0) return; // cada medio segundo
+        boolean inGame = mc.player != null;
+        boolean social = mc.screen instanceof SocialScreen;
+        long every = social ? 4000L : (inGame ? 25000L : 15000L);
+        String server = (inGame && mc.getCurrentServer() != null) ? mc.getCurrentServer().ip : "";
+        if (SocialClient.sinceLastSync() > (SocialClient.snapshot() == null ? 5000L : every)) { // sin estado: reintenta cada 5 s, no cada tick
             SocialClient.sync(inGame, server);
+        } else if (!social && SocialClient.sinceLastPoll() > 4000L) {
+            // consulta rápida: solo si algo cambió se baja el estado completo (ver SocialClient.poll)
+            SocialClient.poll(inGame, server);
         }
+    }
+
+    /** Avisos en la partida (sin pantalla abierta; con pantalla los dibuja onScreenRender). */
+    @SubscribeEvent
+    public void onHud(RenderGuiEvent.Post e) {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.screen != null || mc.options.hideGui) return;
+        Toasts.draw(e.getGuiGraphics());
+    }
+
+    /** Avisos sobre cualquier pantalla (menú principal, pausa, inventario...). */
+    @SubscribeEvent
+    public void onScreenRender(ScreenEvent.Render.Post e) {
+        Toasts.draw(e.getGuiGraphics());
     }
 }

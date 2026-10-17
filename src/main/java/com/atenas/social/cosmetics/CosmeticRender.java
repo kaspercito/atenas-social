@@ -3,6 +3,7 @@ package com.atenas.social.cosmetics;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.math.Axis;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.model.PlayerModel;
 import net.minecraft.client.model.geom.EntityModelSet;
 import net.minecraft.client.model.geom.ModelLayerLocation;
@@ -32,22 +33,21 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/** Modelos y capas de dibujo de los cosméticos (capa, alas y sombreros). */
+/** Modelos y capas de dibujo de los cosméticos (capa de tela, alas de plumas y sombreros). Las mascotas están en {@link PetRender}. */
 public final class CosmeticRender {
     public static final ModelLayerLocation CAPE = loc("cape");
-    public static final ModelLayerLocation WINGS = loc("wings");
     public static final ModelLayerLocation HATS = loc("hats");
     public static final ModelLayerLocation CAPE_ANIM = loc("cape_anim");
 
     private CosmeticRender() {}
 
-    private static ModelLayerLocation loc(String n) { return new ModelLayerLocation(new ResourceLocation(Cosmetics.MODID, n), "main"); }
+    static ModelLayerLocation loc(String n) { return new ModelLayerLocation(new ResourceLocation(Cosmetics.MODID, n), "main"); }
 
     // ------------------------------------------------------------------ registro
     public static void registerDefinitions(EntityRenderersEvent.RegisterLayerDefinitions e) {
         e.registerLayerDefinition(CAPE, CosmeticRender::capeDef);
         e.registerLayerDefinition(CAPE_ANIM, CosmeticRender::capeAnimDef);
-        e.registerLayerDefinition(WINGS, CosmeticRender::wingsDef);
+        PetRender.registerDefinitions(e);
         e.registerLayerDefinition(HATS, CosmeticRender::hatsDef);
     }
 
@@ -104,52 +104,39 @@ public final class CosmeticRender {
     }
 
     // ------------------------------------------------------------------ definiciones
-    /** Textura 64x32 lógica (el PNG puede ser más grande: las coordenadas son proporcionales). */
-    private static LayerDefinition capeDef() {
-        MeshDefinition m = new MeshDefinition();
-        m.getRoot().addOrReplaceChild("cape", CubeListBuilder.create().texOffs(0, 0).addBox(-5f, 0f, -1f, 10f, 16f, 1f), PartPose.ZERO);
-        return LayerDefinition.create(m, 64, 32);
-    }
+    /** Tiras de la capa de tela (ver {@link CapeWave}). */
+    static final int CAPE_SEGS = CapeWave.SEGS;
 
-    /** Capa animada: una pieza por fotograma, cada una apuntando a su franja de la textura (64 x 32*N logicos). Cambiar de fotograma = elegir otra pieza. */
-    private static LayerDefinition capeAnimDef() {
+    /**
+     * Capa de tela: por cada fotograma, una cadena de CAPE_SEGS tiras de 2 de alto que cuelgan una de otra (la pieza "c<f>" es la
+     * de los hombros y de ella cuelgan "s1".."s7"). Textura 64x32 lógica por fotograma (el PNG puede ser más grande); la tira i usa
+     * v = 32*f + 2*i, así su cara cae en las mismas filas que la capa de una sola pieza y cualquier textura se ve igual que antes.
+     * Capa normal = 1 fotograma; capa animada = ANIM_FRAMES (cambiar de fotograma = elegir otra cadena).
+     */
+    private static LayerDefinition capeChain(int frames) {
         MeshDefinition m = new MeshDefinition();
-        for (int f = 0; f < Cosmetics.ANIM_FRAMES; f++) {
-            m.getRoot().addOrReplaceChild("c" + f, CubeListBuilder.create().texOffs(0, 32 * f).addBox(-5f, 0f, -1f, 10f, 16f, 1f), PartPose.ZERO);
+        for (int f = 0; f < frames; f++) {
+            PartDefinition parent = m.getRoot();
+            for (int i = 0; i < CAPE_SEGS; i++) {
+                parent = parent.addOrReplaceChild(i == 0 ? "c" + f : "s" + i,
+                    CubeListBuilder.create().texOffs(0, 32 * f + CapeWave.SEG_H * i).addBox(-5f, 0f, -1f, 10f, CapeWave.SEG_H, 1f),
+                    PartPose.offset(0f, i == 0 ? 0f : CapeWave.SEG_H, 0f));
+            }
         }
-        return LayerDefinition.create(m, 64, 32 * Cosmetics.ANIM_FRAMES);
+        return LayerDefinition.create(m, 64, 32 * frames);
     }
 
-    // ---- Alas: hueso + 10 plumas largas + 7 coberteras. Debe coincidir con tools/gen_wings.py ----
-    static final int[] P_LEN = {22, 22, 21, 20, 19, 17, 15, 13, 11, 9};
-    static final int P_H = 4;
-    static final int[] C_LEN = {12, 12, 11, 10, 9, 8, 7};
-    static final int C_H = 3;
-    static final int BONE_LEN = 15, BONE_H = 2;
-    static final int P_V0 = 0;
-    static final int C_V0 = P_V0 + P_LEN.length * (P_H + 1);
-    static final int BONE_V = C_V0 + C_LEN.length * (C_H + 1);
-    static final int FEATHERS = 1 + P_LEN.length + C_LEN.length;
+    private static LayerDefinition capeDef() { return capeChain(1); }
 
-    private static void feather(PartDefinition right, PartDefinition left, int k, int len, int h, int v, float ang, float z) {
-        right.addOrReplaceChild("f" + k, CubeListBuilder.create().texOffs(0, v).addBox(-len, -h / 2f, 0f, len, h, 1f),
-            PartPose.offsetAndRotation(0f, 0f, z, 0f, 0f, ang));
-        left.addOrReplaceChild("f" + k, CubeListBuilder.create().texOffs(0, v).mirror().addBox(0f, -h / 2f, 0f, len, h, 1f),
-            PartPose.offsetAndRotation(0f, 0f, z, 0f, 0f, -ang));
-    }
+    private static LayerDefinition capeAnimDef() { return capeChain(Cosmetics.ANIM_FRAMES); }
 
-    private static LayerDefinition wingsDef() {
-        MeshDefinition m = new MeshDefinition();
-        PartDefinition root = m.getRoot();
-        PartDefinition right = root.addOrReplaceChild("wing_r", CubeListBuilder.create(), PartPose.offset(-1f, 1f, 2.2f));
-        PartDefinition left = root.addOrReplaceChild("wing_l", CubeListBuilder.create(), PartPose.offset(1f, 1f, 2.2f));
-        int k = 0;
-        feather(right, left, k++, BONE_LEN, BONE_H, BONE_V, 0.66f, 0.00f);                       // hueso (borde de ataque)
-        for (int i = 0; i < P_LEN.length; i++)                                                    // plumas largas, z alterna
-            feather(right, left, k++, P_LEN[i], P_H, P_V0 + i * (P_H + 1), 0.50f - i * 0.15f, 0.10f + (i % 2) * 0.35f);
-        for (int i = 0; i < C_LEN.length; i++)                                                    // coberteras por fuera
-            feather(right, left, k++, C_LEN[i], C_H, C_V0 + i * (C_H + 1), 0.42f - i * 0.19f, 0.95f + (i % 2) * 0.30f);
-        return LayerDefinition.create(m, 64, 128);
+    /** Las piezas de la cadena del fotograma f, de arriba hacia abajo. */
+    private static ModelPart[] chainOf(ModelPart root, int f) {
+        ModelPart[] out = new ModelPart[CAPE_SEGS];
+        ModelPart cur = root.getChild("c" + f);
+        out[0] = cur;
+        for (int i = 1; i < CAPE_SEGS; i++) { cur = cur.getChild("s" + i); out[i] = cur; }
+        return out;
     }
 
     private static void hat(PartDefinition root, String id, CubeListBuilder b) { root.addOrReplaceChild(id, b, PartPose.ZERO); }
@@ -218,16 +205,17 @@ public final class CosmeticRender {
         }
     }
 
-    /** Capa propia: mismo movimiento que la de Mojang, un poco más atrás para taparla. */
+    /** Capa de tela propia: mismo movimiento que la de Mojang, un poco más atrás para taparla, pero las tiras se doblan y ondean. */
     public static final class CapeLayer extends Base {
-        private final ModelPart cape;
-        private final ModelPart[] animCape = new ModelPart[Cosmetics.ANIM_FRAMES];
+        private final ModelPart[][] chains = new ModelPart[Cosmetics.ANIM_FRAMES][];
+        private final ModelPart[] still;
+        private final float[] rx = new float[CAPE_SEGS], rz = new float[CAPE_SEGS];
 
         public CapeLayer(RenderLayerParent<AbstractClientPlayer, PlayerModel<AbstractClientPlayer>> parent, EntityModelSet set) {
             super(parent);
-            cape = set.bakeLayer(CAPE).getChild("cape");
+            still = chainOf(set.bakeLayer(CAPE), 0);
             ModelPart anim = set.bakeLayer(CAPE_ANIM);
-            for (int f = 0; f < animCape.length; f++) animCape[f] = anim.getChild("c" + f);
+            for (int f = 0; f < chains.length; f++) chains[f] = chainOf(anim, f);
         }
 
         @Override
@@ -238,7 +226,8 @@ public final class CosmeticRender {
             if (item == null || !Cosmetics.inRange(p)) return;
 
             ps.pushPose();
-            ps.translate(0.0D, 0.0D, 0.15D);
+            // con alas puestas la capa va por fuera de ellas (más lejos del cuerpo); si no, las plumas la tapaban
+            ps.translate(0.0D, 0.0D, Cosmetics.of(p, Cosmetics.Type.WINGS) != null ? 0.29D : 0.15D);
             double dx = Mth.lerp(pt, p.xCloakO, p.xCloak) - Mth.lerp(pt, p.xo, p.getX());
             double dy = Mth.lerp(pt, p.yCloakO, p.yCloak) - Mth.lerp(pt, p.yo, p.getY());
             double dz = Mth.lerp(pt, p.zCloakO, p.zCloak) - Mth.lerp(pt, p.zo, p.getZ());
@@ -250,28 +239,49 @@ public final class CosmeticRender {
             float sway = Mth.clamp((float) (dx * cos - dz * sin) * 100.0F, -20.0F, 20.0F);
             lift += Mth.sin(Mth.lerp(pt, p.walkDistO, p.walkDist) * 6.0F) * 32.0F * Mth.lerp(pt, p.oBob, p.bob);
             if (p.isCrouching()) lift += 25.0F;
-            ps.mulPose(Axis.XP.rotationDegrees(6.0F + swing / 2.0F + lift));
-            ps.mulPose(Axis.ZP.rotationDegrees(sway / 2.0F));
+            // La inclinación total es la de siempre, pero solo el 35 % la gira el cuerpo entero: el resto lo doblan las tiras de tela.
+            float tilt = swing / 2.0F + lift;
+            ps.mulPose(Axis.XP.rotationDegrees(6.0F + tilt * 0.35F));
+            ps.mulPose(Axis.ZP.rotationDegrees(sway / 4.0F));
             ps.mulPose(Axis.YP.rotationDegrees(180.0F - sway / 2.0F));
 
+            ModelPart[] chain = item.frames > 1 ? chains[Cosmetics.frameOf(item) % chains.length] : still;
+            CapeWave.angles((float) Math.toRadians(tilt * 0.65F), CapeWave.ampFor(swing), age, (float) Math.toRadians(sway / 4.0F), rx, rz);
+            for (int i = 0; i < CAPE_SEGS; i++) { chain[i].xRot = rx[i]; chain[i].zRot = rz[i]; }
+
             VertexConsumer vc = buf.getBuffer(RenderType.entityCutoutNoCull(item.texture));
-            ModelPart part = item.frames > 1 ? animCape[Cosmetics.frameOf(item) % animCape.length] : cape;
-            part.render(ps, vc, light(item, light), OverlayTexture.NO_OVERLAY);
+            chain[0].render(ps, vc, light(item, light), OverlayTexture.NO_OVERLAY);
             ps.popPose();
         }
     }
 
-    /** Alas: quietas con un respiro leve en el suelo, abiertas y aleteando en el aire. */
+    /** Entrega los vértices de {@link WingMesh} a un VertexConsumer (formato de entidad: posición, color, textura, overlay, luz, normal). */
+    private static final class VertexSink implements WingMesh.Sink {
+        VertexConsumer vc;
+        PoseStack.Pose pose;
+        int light;
+        float nx, ny = 1f, nz;
+
+        void begin(VertexConsumer vc, PoseStack.Pose pose, int light) { this.vc = vc; this.pose = pose; this.light = light; }
+
+        @Override public void normal(float x, float y, float z) { nx = x; ny = y; nz = z; }
+
+        @Override public void vertex(float x, float y, float z, float u, float v) {
+            vc.vertex(pose.pose(), x, y, z).color(255, 255, 255, 255).uv(u, v).overlayCoords(OverlayTexture.NO_OVERLAY)
+                .uv2(light).normal(pose.normal(), nx, ny, nz).endVertex();
+        }
+    }
+
+    /**
+     * Alas de plumas: la forma sale de {@link WingMesh} (cada pluma es una tira de segmentos que ondula). Quietas con un respiro leve en el
+     * suelo, abiertas y aleteando en el aire. De lejos se dibujan con menos segmentos y una sola cara.
+     */
     public static final class WingsLayer extends Base {
-        private final ModelPart right, left;
-        private final ModelPart[] rf = new ModelPart[FEATHERS], lf = new ModelPart[FEATHERS];
+        private final WingMesh mesh = new WingMesh();
+        private final VertexSink sink = new VertexSink();
 
         public WingsLayer(RenderLayerParent<AbstractClientPlayer, PlayerModel<AbstractClientPlayer>> parent, EntityModelSet set) {
             super(parent);
-            ModelPart root = set.bakeLayer(WINGS);
-            right = root.getChild("wing_r");
-            left = root.getChild("wing_l");
-            for (int i = 0; i < FEATHERS; i++) { rf[i] = right.getChild("f" + i); lf[i] = left.getChild("f" + i); }
         }
 
         @Override
@@ -281,25 +291,23 @@ public final class CosmeticRender {
             Cosmetics.Item item = Cosmetics.of(p, Cosmetics.Type.WINGS);
             if (item == null || !Cosmetics.inRange(p)) return;
 
+            Minecraft mc = Minecraft.getInstance();
+            double d2 = (mc.player == null || p == mc.player) ? 0.0 : p.distanceToSqr(mc.player);
+            int segs = WingMesh.segsFor(d2);
+            boolean twoSided = WingMesh.twoSidedFor(d2);
+
             boolean air = !p.onGround() && !p.isInWater() && !p.isPassenger();
             float open = air ? 0.50F + Mth.sin(age * 0.55F) * 0.32F : 0.85F + Mth.sin(age * 0.07F) * 0.05F;
+            if (Cosmetics.of(p, Cosmetics.Type.CAPE) != null) open += 0.14F; // más abiertas: se ve la capa entre ellas
             if (p.isCrouching()) open = 1.15F;
-            right.yRot = open;
-            left.yRot = -open;
-            // en el aire cada pluma se retrasa un poco respecto a la anterior: una onda recorre el ala
-            float flap = air ? 0.10F : 0F;
-            for (int i = 0; i < FEATHERS; i++) {
-                float w = flap == 0F ? 0F : Mth.sin(age * 0.55F - i * 0.22F) * flap;
-                rf[i].yRot = w;
-                lf[i].yRot = -w;
-            }
+            float flap = air ? 0.10F : 0F; // en el aire las plumas ondulan; en el suelo quedan quietas
 
             ps.pushPose();
             getParentModel().body.translateAndRotate(ps);
             VertexConsumer vc = buf.getBuffer(RenderType.entityCutoutNoCull(item.texture));
-            int l = light(item, light);
-            right.render(ps, vc, l, OverlayTexture.NO_OVERLAY);
-            left.render(ps, vc, l, OverlayTexture.NO_OVERLAY);
+            sink.begin(vc, ps.last(), light(item, light));
+            mesh.emit(sink, open, age, flap, segs, twoSided, 0.0625F);
+            sink.vc = null;
             ps.popPose();
         }
     }

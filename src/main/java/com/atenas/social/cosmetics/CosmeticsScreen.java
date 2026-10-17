@@ -33,7 +33,7 @@ public class CosmeticsScreen extends Screen {
         gy = py + 52;
         gw = pw - PREVIEW_W - 24;
         gh = ph - 60;
-        int tw = Math.min(70, (gw - 8) / 3);
+        int tw = Math.min(70, (gw - 8) / Cosmetics.Type.values().length - 4);
         int i = 0;
         for (Cosmetics.Type t : Cosmetics.Type.values()) {
             final Cosmetics.Type tt = t;
@@ -97,7 +97,7 @@ public class CosmeticsScreen extends Screen {
 
         // pesta\u00f1as resaltadas
         // (los botones ya se dibujan solos; subrayamos la activa)
-        int tw = Math.min(70, (gw - 8) / 3), ti = 0;
+        int tw = Math.min(70, (gw - 8) / Cosmetics.Type.values().length - 4), ti = 0;
         for (Cosmetics.Type t : Cosmetics.Type.values()) {
             if (t == tab) g.fill(gx + ti * (tw + 4), py + 44, gx + ti * (tw + 4) + tw, py + 46, Ui.ACCENT_LIGHT);
             ti++;

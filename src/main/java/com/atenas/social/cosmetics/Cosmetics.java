@@ -13,6 +13,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.EnumMap;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -22,7 +23,7 @@ public final class Cosmetics {
     public static final String MODID = "atenassocial";
 
     public enum Type {
-        CAPE("Capas", "capes"), WINGS("Alas", "wings"), HAT("Sombreros", "hats");
+        CAPE("Capas", "capes"), WINGS("Alas", "wings"), HAT("Sombreros", "hats"), PET("Mascotas", "pets");
         public final String label, folder;
         Type(String label, String folder) { this.label = label; this.folder = folder; }
         public String key() { return name().toLowerCase(Locale.ROOT); }
@@ -99,6 +100,13 @@ public final class Cosmetics {
         add(Type.HAT, "auriculares", "Auriculares", 0xFF28283A, false);
         add(Type.HAT, "conejo", "Orejas de conejo", 0xFFF2F2F7, false);
         add(Type.HAT, "gorra", "Gorra", 0xFF2447B8, false);
+        // Mascotas (el modelo se elige por id en PetSpec: perro/dalmata = dog, husky, gato/gatonegro = cat, zorro = fox)
+        add(Type.PET, "perro", "Perro", 0xFFCD9654, false);
+        add(Type.PET, "husky", "Husky", 0xFF68707E, false);
+        add(Type.PET, "dalmata", "D\u00e1lmata", 0xFFF4F4F6, false);
+        add(Type.PET, "gato", "Gato", 0xFFE28E3E, false);
+        add(Type.PET, "gatonegro", "Gato negro", 0xFF24242E, false);
+        add(Type.PET, "zorro", "Zorro", 0xFFE87028, false);
         load();
     }
 
@@ -140,11 +148,46 @@ public final class Cosmetics {
         CosmeticSync.markDirty();
     }
 
-    /** Cosmético a dibujar en un jugador: el tuyo, o el que bajamos del servicio para los demás. */
+    /** Aplica lo que el servicio tiene para TI (otra versi\u00f3n del juego lo cambi\u00f3). No lo vuelve a subir. */
+    public static void applyRemote(Type t, String id) {
+        if (id == null) return;
+        Item cur = SELECTED.get(t);
+        if ("none".equals(id)) { if (cur != null) { SELECTED.remove(t); save(); } return; }
+        Item next = find(t, id);
+        if (next != null && next != cur) { SELECTED.put(t, next); save(); }
+    }
+
+    /** Lo que lleva puesto otro jugador, ya resuelto (se recalcula solo cuando llegan datos nuevos del servicio). */
+    private static final class Look {
+        final Item[] items = new Item[Type.values().length];
+        int stamp = -1;
+    }
+
+    /** Cache por jugador (clave = nick tal como lo da el perfil; su hash ya viene calculado). Solo el hilo principal la toca. */
+    private static final Map<String, Look> LOOKS = new HashMap<>();
+
+    /** Cosmético a dibujar en un jugador: el tuyo, o el que bajamos del servicio para los demás (con cache: sin buscar ni crear texto cada cuadro). */
     public static Item of(AbstractClientPlayer p, Type t) {
         Minecraft mc = Minecraft.getInstance();
         if (p == mc.player) return selected(t);
-        return find(t, CosmeticSync.get(p.getGameProfile().getName(), t));
+        String n = p.getGameProfile().getName();
+        if (n == null) return null;
+        Look l = LOOKS.get(n);
+        if (l == null) {
+            if (LOOKS.size() > 256) LOOKS.clear();
+            l = new Look();
+            LOOKS.put(n, l);
+        }
+        int stamp = CosmeticSync.stamp();
+        if (l.stamp != stamp) {
+            String[] ids = CosmeticSync.idsOf(n);
+            for (Type ty : Type.values()) {
+                String id = ids == null || ty.ordinal() >= ids.length ? null : ids[ty.ordinal()];
+                l.items[ty.ordinal()] = find(ty, id);
+            }
+            l.stamp = stamp;
+        }
+        return l.items[t.ordinal()];
     }
 
     private static Path file() { return FMLPaths.CONFIGDIR.get().resolve("atenas-cosmetics.json"); }

@@ -4,10 +4,6 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.components.toasts.SystemToast;
-import net.minecraft.network.chat.Component;
-
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
@@ -65,6 +61,10 @@ public final class SocialClient {
     private static volatile String status = "loading"; // loading | ok | error | noaccount
     private static volatile String error = "";
     private static final AtomicBoolean BUSY = new AtomicBoolean(false);
+    private static final AtomicBoolean POLL_BUSY = new AtomicBoolean(false);
+    /** Firma de la última consulta rápida (sin leer : último mensaje : solicitudes). Si cambia, llegó algo nuevo. */
+    private static volatile String lastPoll;
+    private static volatile long lastSync, lastPollAt;
     private static final ExecutorService POOL = Executors.newSingleThreadExecutor(r -> {
         Thread t = new Thread(r, "Atenas-Social");
         t.setDaemon(true);
@@ -192,6 +192,7 @@ public final class SocialClient {
     public static void sync(boolean inGame, String server) {
         if (!validName(myName())) { status = "noaccount"; return; }
         if (!BUSY.compareAndSet(false, true)) return;
+        lastSync = System.currentTimeMillis();
         final String who = myName();
         POOL.execute(() -> {
             try {
@@ -217,15 +218,36 @@ public final class SocialClient {
         });
     }
 
+    public static long sinceLastSync() { return System.currentTimeMillis() - lastSync; }
+
+    public static long sinceLastPoll() { return System.currentTimeMillis() - lastPollAt; }
+
+    /**
+     * Consulta rápida (/poll): el servicio responde con 2 lecturas pequeñas en vez de bajar todo el estado. Se hace cada pocos
+     * segundos y solo si algo cambió (mensaje o solicitud nueva) se pide el estado completo con /sync, así los avisos llegan casi
+     * al instante sin cargar al servicio. La primera vez solo guarda la firma. No bloquea.
+     */
+    public static void poll(boolean inGame, String server) {
+        if (snap == null || !validName(myName())) return; // sin estado completo, el sync normal se encarga
+        if (!POLL_BUSY.compareAndSet(false, true)) return;
+        lastPollAt = System.currentTimeMillis();
+        final String who = myName();
+        POOL.execute(() -> {
+            try {
+                JsonObject r = post("/poll", new JsonObject());
+                if (!who.equals(myName())) return;
+                String sig = str(r, "unread") + ":" + str(r, "last") + ":" + str(r, "incoming");
+                boolean changed = lastPoll != null && !sig.equals(lastPoll);
+                lastPoll = sig;
+                if (changed) sync(inGame, server);
+            } catch (Exception ignored) { /* sin conexión: el ciclo normal reintenta */
+            } finally { POLL_BUSY.set(false); }
+        });
+    }
+
     /** Refresca el estado ahora mismo (tras una acción) sin avisos. */
     private static void refreshQuiet() {
         try { snap = parse(post("/sync", new JsonObject())); status = "ok"; error = ""; } catch (Exception ignored) { }
-    }
-
-    private static void toast(String title, String text) {
-        Minecraft mc = Minecraft.getInstance();
-        mc.execute(() -> SystemToast.add(mc.getToasts(), SystemToast.SystemToastIds.PERIODIC_NOTIFICATION,
-            Component.literal(title), Component.literal(text)));
     }
 
     private static void notifyChanges(Snapshot prev, Snapshot next) {
@@ -235,12 +257,12 @@ public final class SocialClient {
         java.util.Set<String> prevIn = new java.util.HashSet<>(), prevOut = new java.util.HashSet<>();
         for (Req r : prev.incoming) prevIn.add(r.key);
         for (Req r : prev.outgoing) prevOut.add(r.key);
-        for (Req r : next.incoming) if (!prevIn.contains(r.key)) toast("Solicitud de amistad", r.name + " quiere ser tu amigo");
+        for (Req r : next.incoming) if (!prevIn.contains(r.key)) Toasts.push("Solicitud de amistad", r.name + " quiere ser tu amigo", r.name, Ui.ACCENT);
         for (Friend f : next.friends) {
             Friend p = before.get(f.key);
-            if (p == null) { if (prevOut.contains(f.key)) toast("Atenas", f.name + " aceptó tu solicitud"); continue; }
-            if (f.unread > 0 && f.previewId > p.previewId && !f.key.equals(viewingKey)) toast(f.name, f.previewBody);
-            else if (!p.online() && f.online()) toast("Atenas", f.name + (f.state.equals("playing") ? " está jugando" : " se conectó"));
+            if (p == null) { if (prevOut.contains(f.key)) Toasts.push("Nuevo amigo", f.name + " aceptó tu solicitud", f.name, 0xFF55FF99); continue; }
+            if (f.unread > 0 && f.previewId > p.previewId && !f.key.equals(viewingKey)) Toasts.push(f.name, f.previewBody, f.name, 0xFF55CCFF);
+            else if (!p.online() && f.online()) Toasts.push("Amigos", f.name + (f.state.equals("playing") ? " está jugando" : " se conectó"), f.name, 0xFF55FF99);
         }
     }
 

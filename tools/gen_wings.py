@@ -1,123 +1,115 @@
-"""Alas nuevas (plumas con forma, alta resolucion) y capas ANIMADAS para Atenas 1.20.1 (todas de 12 fotogramas).
+"""Alas (atlas de plumas, malla propia) y capas ANIMADAS.
 Uso:  python3 tools/gen_wings.py   (necesita Pillow y numpy)
-La geometria de las alas debe coincidir con WingsModel.java (P_LEN, C_LEN, ...)."""
+
+ATLAS DE ALAS: una sola imagen de 256 x (26 * 40). Cada pluma ocupa una franja de 256 x 40 px: la raiz a la izquierda (u=0)
+y la punta a la derecha (u=1). El orden y las medidas deben coincidir con WingMesh.java (LEN, WID):
+  0 = hueso (borde de ataque) | 1..11 = primarias | 12..19 = secundarias | 20..25 = coberteras.
+Ya no son cajas de Minecraft: el mod dibuja cada pluma como una tira de cuadrados doblada y animada.
+"""
 import os, math
 import numpy as np
 from PIL import Image, ImageDraw, ImageFilter
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-ROOT = os.path.join(HERE, "..", "src", "main", "resources", "assets", "atenassocial", "textures", "cosmetics") + os.sep
+RES = os.path.join(HERE, "..", "src", "main", "resources", "assets")
+ASSET = "atenasclient" if os.path.isdir(os.path.join(RES, "atenasclient")) else "atenassocial"
+ROOT = os.path.join(RES, ASSET, "textures", "cosmetics") + os.sep
 
 # ======================= ALAS =======================
-P_LEN = [22, 22, 21, 20, 19, 17, 15, 13, 11, 9]; P_H = 4
-C_LEN = [12, 12, 11, 10, 9, 8, 7]; C_H = 3
-BONE_LEN, BONE_H = 15, 2
-P_V0 = 0
-C_V0 = P_V0 + len(P_LEN) * (P_H + 1)
-BONE_V = C_V0 + len(C_LEN) * (C_H + 1)
-S = 8                      # pixeles reales por unidad del modelo (la textura declarada es 64x128)
-TW, TH = 64, 128
+LEN = [16] + [26, 26, 25, 24, 23, 22, 20, 18, 16, 14, 12] + [17, 17, 16, 15, 14, 12.5, 11, 9.5] + [10, 10, 9, 8, 7, 6]
+WID = [2.6] + [5.2] * 11 + [4.4] * 8 + [3.6] * 6
+N = len(LEN)               # 26
+AW, BH = 256, 40           # franja por pluma
 
-def mix(a, b, t): return tuple(int(a[i] + (b[i] - a[i]) * t) for i in range(3))
+def smooth(a, b, x):
+    t = np.clip((x - a) / (b - a + 1e-9), 0, 1); return t * t * (3 - 2 * t)
 
-def feather_face(w, h, main, tip, outline, tip_right, bone=False):
-    """Cara w x h (unidades) de una pluma: hoja puntiaguda con raquis, barbas y degradado. Raiz a un lado, punta al otro."""
-    W, H = w * S, h * S
-    k = 3                                  # supermuestreo para bordes suaves
-    im = Image.new("RGBA", (W * k, H * k), (0, 0, 0, 0)); d = ImageDraw.Draw(im)
-    top, bot = [], []
-    n = 40
-    for i in range(n + 1):
-        t = i / n                          # 0 raiz -> 1 punta
-        if bone:
-            half = (0.5 - 0.18 * t) * H * k   # hueso: casi recto, afinandose
-        else:
-            half = (0.5 * (1 - t ** 2.4) ** 0.9) * H * k * (0.55 + 0.45 * min(1, t * 6))  # hoja: ancha en el medio, punta fina
-        x = t * W * k
-        cy = H * k / 2 + (0 if bone else math.sin(t * math.pi) * 0.06 * H * k)
-        top.append((x, cy - half)); bot.append((x, cy + half))
-    poly = top + bot[::-1]
-    d.polygon(poly, fill=outline + (255,))
-    # relleno interior (mas pequeno que el contorno)
-    inner = Image.new("RGBA", im.size, (0, 0, 0, 0)); di = ImageDraw.Draw(inner)
-    ins = []
-    for (x, y), (_, y2) in zip(top, bot):
-        c = (y + y2) / 2; ins.append((x, c - (c - y) * 0.72))
-    ins2 = [(x, (y + y2) / 2 + ((y2 - y) / 2) * 0.72) for (x, y), (_, y2) in zip(top, bot)]
-    di.polygon(ins + ins2[::-1], fill=(255, 255, 255, 255))
-    px = inner.load(); base = im.load()
-    for yy in range(inner.size[1]):
-        for xx in range(inner.size[0]):
-            if px[xx, yy][3]:
-                t = xx / (W * k)
-                col = mix(main, tip, max(0.0, (t - 0.65) / 0.35) ** 1.5)
-                # barbas: lineas diagonales suaves
-                shade = 0.88 if ((xx // k + yy // k * 1) // 3) % 2 else 1.0
-                base[xx, yy] = tuple(int(c * shade) for c in col) + (255,)
-    # raquis (nervio central) mas claro
-    cy = H * k / 2
-    d.line([(0, cy), (W * k * 0.97, cy)], fill=mix(main, (255, 255, 255), 0.55) + (255,), width=max(1, k))
-    im = im.resize((W, H), Image.LANCZOS)
-    return im.transpose(Image.FLIP_LEFT_RIGHT) if tip_right is False else im
+def mixc(a, b, t):
+    t = t[..., None]; return np.array(a, np.float32) * (1 - t) + np.array(b, np.float32) * t
 
-def paste_box_strip(sheet, u0, v0, w, h, face_back, face_front):
-    """Caja w x h x 1: cara trasera (exterior) en (u0+1+w+1, v0+1), delantera en (u0+1, v0+1). Bordes transparentes."""
-    sheet.paste(face_back, ((u0 + 1 + w + 1) * S, (v0 + 1) * S))
-    sheet.paste(face_front, ((u0 + 1) * S, (v0 + 1) * S))
+def feather(k, pal, seed):
+    """Franja RGBA (BH x AW) de la pluma k. Hoja con raquis, barbas, borde y degradado raiz -> punta."""
+    root, mid, tip, rim, shaft = pal
+    rng = np.random.default_rng(seed * 131 + k)
+    u = ((np.arange(AW) + .5) / AW)[None, :]
+    v = ((np.arange(BH) + .5) / BH * 2 - 1)[:, None]
+    bone = (k == 0)
+    if bone:
+        hw = 0.78 * (1 - 0.55 * u) + 0 * v
+        c = 0 * u + 0 * v
+    else:
+        grow = np.clip(u / 0.10, 0, 1) ** 0.6
+        fall = (1 - np.clip((u - 0.50) / 0.50, 0, 1) ** 2.1) ** 0.62
+        hw = 0.94 * grow * fall + 0 * v
+        c = 0.10 * np.sin(np.pi * u) + 0 * v           # la pluma se curva un poco
+    d = np.abs(v - c)
+    hw = np.where(v - c < 0, hw, hw * 0.86)            # borde de ataque mas recto
+    alpha = np.clip((hw - d) * (BH / 2) + .5, 0, 1)
+    layer = 0.0 if k == 0 else (0.0 if k <= 11 else (0.5 if k <= 19 else 1.0))
+    # degradado: oscuro en la raiz, color pleno en el medio, punta clara
+    t = np.broadcast_to(u, alpha.shape)
+    col = mixc(root, mid, smooth(0.0, 0.5, t) ** 0.9)
+    col = mixc(col, tip, smooth(0.62, 1.0, t) ** 1.35) if not bone else col
+    col = col + 0 * alpha[..., None]
+    # barbas: lineas oblicuas desde el raquis hacia atras
+    b = u * AW / 5.5 + np.abs(v - c) * BH * 0.22
+    bar = 0.5 + 0.5 * np.cos(b * 2 * math.pi)
+    col = col * (0.88 + 0.12 * bar[..., None])
+    # borde (rim) y brillo del borde de ataque
+    edge = smooth(0.62, 1.0, d / np.maximum(hw, 1e-3))
+    col = col * (1 - 0.55 * edge[..., None]) + np.array(rim, np.float32) * 0.55 * edge[..., None]
+    lead = smooth(0.78, 0.98, d / np.maximum(hw, 1e-3)) * (v - c < 0) * (1 - smooth(0.5, 1, t))
+    col = col + lead[..., None] * 60
+    # raquis (nervio central)
+    shw = (0.07 * (1 - 0.7 * u) + 0.012) + 0 * v
+    sh = np.clip((shw - d) * (BH / 2) + .5, 0, 1) * (u < 0.96)
+    col = col * (1 - sh[..., None] * .85) + np.array(shaft, np.float32) * sh[..., None] * .85
+    # variacion por pluma y ruido fino
+    col = col * (0.93 + 0.14 * ((k * 37) % 11) / 10.0) * (1 + 0.04 * layer)
+    col = col + rng.normal(0, 3.0, col.shape).astype(np.float32)
+    out = np.dstack([np.clip(col, 0, 255), alpha * 255]).astype(np.uint8)
+    return Image.fromarray(out, "RGBA")
 
-def wings(name, main, tip, outline, bone_col):
-    sheet = Image.new("RGBA", (TW * S, TH * S), (0, 0, 0, 0))
-    for i, w in enumerate(P_LEN):
-        t = i / (len(P_LEN) - 1)
-        c = mix(main, tuple(max(0, v - 25) for v in main), t * 0.5)
-        back = feather_face(w, P_H, c, tip, outline, True)       # exterior: raiz a la izquierda, punta a la derecha
-        front = feather_face(w, P_H, mix(c, outline, 0.35), tip, outline, False)  # interior: espejo, algo mas oscuro
-        paste_box_strip(sheet, 0, P_V0 + i * (P_H + 1), w, P_H, back, front)
-    for i, w in enumerate(C_LEN):
-        c = mix(main, (255, 255, 255), 0.18 + 0.05 * i)
-        back = feather_face(w, C_H, c, mix(tip, c, 0.4), outline, True)
-        front = feather_face(w, C_H, mix(c, outline, 0.4), tip, outline, False)
-        paste_box_strip(sheet, 0, C_V0 + i * (C_H + 1), w, C_H, back, front)
-    back = feather_face(BONE_LEN, BONE_H, bone_col, bone_col, outline, True, bone=True)
-    front = feather_face(BONE_LEN, BONE_H, mix(bone_col, outline, .4), bone_col, outline, False, bone=True)
-    paste_box_strip(sheet, 0, BONE_V, BONE_LEN, BONE_H, back, front)
+def wings(name, pal, seed):
+    sheet = Image.new("RGBA", (AW, BH * N), (0, 0, 0, 0))
+    for k in range(N):
+        sheet.paste(feather(k, pal, seed), (0, k * BH))
     sheet.save(ROOT + "wings/%s.png" % name, optimize=True)
-    # icono 32x32: el abanico de plumas vista desde atras (raiz abajo-izquierda)
-    BIG = 256; ic = Image.new("RGBA", (BIG, BIG), (0, 0, 0, 0)); sc = BIG * 0.46 / (22 * S)
-    def put(face, ang, ox, oy):
-        f = face.resize((int(face.width * sc), max(2, int(face.height * sc))), Image.LANCZOS)
-        sq = Image.new("RGBA", (f.width * 2 + 4, f.width * 2 + 4), (0, 0, 0, 0)); cx = sq.width // 2
+    # icono 32x32: abanico de plumas (mismos angulos que WingMesh)
+    BIG = 320; ic = Image.new("RGBA", (BIG, BIG), (0, 0, 0, 0)); px, py = 40, 250
+    def put(k, ang):
+        f = feather(k, pal, seed); sc = 190 / 26.0 * LEN[k] / AW
+        f = f.resize((max(2, int(AW * sc)), max(2, int(BH * sc * 1.25))), Image.LANCZOS)
+        sq = Image.new("RGBA", (f.width * 2 + 8, f.width * 2 + 8), (0, 0, 0, 0)); cx = sq.width // 2
         sq.paste(f, (cx, cx - f.height // 2)); sq = sq.rotate(math.degrees(ang), resample=Image.BICUBIC)
-        ic.alpha_composite(sq, (int(ox - sq.width / 2), int(oy - sq.height / 2)))
-    for i, w in enumerate(P_LEN):
-        t = i / (len(P_LEN) - 1); c = mix(main, tuple(max(0, v - 25) for v in main), t * .5)
-        put(feather_face(w, P_H, c, tip, outline, True), 0.50 - i * 0.15, 40, 190)
-    for i, w in enumerate(C_LEN):
-        c = mix(main, (255, 255, 255), 0.18 + 0.05 * i)
-        put(feather_face(w, C_H, c, mix(tip, c, .4), outline, True), 0.42 - i * 0.19, 40, 190)
-    put(feather_face(BONE_LEN, BONE_H, bone_col, bone_col, outline, True, bone=True), 0.66, 40, 190)
-    bb = ic.getbbox() or (0, 0, BIG, BIG); ic = ic.crop(bb)
-    k = 30 / max(ic.size); ic = ic.resize((max(1, int(ic.width * k)), max(1, int(ic.height * k))), Image.LANCZOS)
+        ic.alpha_composite(sq, (int(px - sq.width / 2), int(py - sq.height / 2)))
+    for i in range(11): put(1 + i, 0.58 - i * 0.145)
+    for j in range(8): put(12 + j, 0.50 - j * 0.18)
+    for m in range(6): put(20 + m, 0.42 - m * 0.21)
+    put(0, 0.78)
+    ic = ic.crop(ic.getbbox()); kk = 30 / max(ic.size)
+    ic = ic.resize((max(1, int(ic.width * kk)), max(1, int(ic.height * kk))), Image.LANCZOS)
     out = Image.new("RGBA", (32, 32), (0, 0, 0, 0)); out.alpha_composite(ic, ((32 - ic.width) // 2, (32 - ic.height) // 2))
     out.save(ROOT + "icons/wings_%s.png" % name)
 
+#            raiz              medio             punta             borde            raquis
 WINGS = {
-    "doradas":   ((245, 197, 66), (255, 245, 190), (150, 105, 20), (200, 150, 40)),
-    "oscuras":   ((60, 30, 95), (210, 70, 255), (18, 8, 32), (40, 20, 60)),
-    "angel":     ((245, 250, 255), (255, 255, 255), (150, 180, 215), (200, 215, 235)),
-    "atenas":    ((139, 92, 246), (236, 72, 153), (50, 25, 110), (95, 60, 190)),
-    "fuego":     ((255, 110, 20), (255, 235, 90), (130, 30, 10), (200, 70, 20)),
-    "hielo":     ((170, 225, 255), (255, 255, 255), (60, 120, 190), (120, 180, 230)),
-    "neon":      ((20, 230, 230), (255, 60, 200), (10, 40, 70), (15, 150, 170)),
-    "esmeralda": ((46, 204, 113), (210, 255, 225), (10, 90, 50), (30, 140, 80)),
-    "demonio":   ((170, 20, 30), (255, 120, 40), (35, 5, 10), (90, 10, 18)),
+    "doradas":   ((150, 100, 22), (245, 197, 66), (255, 244, 180), (122, 80, 10), (255, 232, 150)),
+    "oscuras":   ((20, 8, 36), (74, 32, 114), (215, 72, 255), (12, 4, 22), (160, 90, 210)),
+    "angel":     ((200, 220, 245), (240, 248, 255), (255, 255, 255), (165, 196, 232), (255, 255, 255)),
+    "atenas":    ((50, 25, 110), (139, 92, 246), (236, 72, 153), (35, 15, 85), (225, 205, 255)),
+    "fuego":     ((120, 20, 8), (255, 110, 20), (255, 236, 100), (90, 15, 5), (255, 205, 110)),
+    "hielo":     ((90, 150, 210), (170, 225, 255), (255, 255, 255), (60, 120, 190), (236, 250, 255)),
+    "neon":      ((8, 60, 90), (20, 230, 230), (255, 60, 200), (5, 30, 50), (205, 255, 255)),
+    "esmeralda": ((8, 80, 45), (46, 204, 113), (215, 255, 230), (6, 60, 32), (205, 255, 225)),
+    "demonio":   ((30, 4, 8), (170, 20, 30), (255, 120, 40), (25, 3, 6), (255, 150, 80)),
 }
-for n, c in WINGS.items():
-    wings(n, *c)
+for i, (n, pal) in enumerate(WINGS.items()):
+    wings(n, pal, i + 1)
 
 # ======================= CAPAS ANIMADAS =======================
-# Tira vertical de N fotogramas de 64x32 unidades (x4 de resolucion). Cada cara externa es 10x16 unidades = 40x64 px.
-CS = 4
+# Tira vertical de N fotogramas de 64x32 unidades (x6 de resolucion). Cada cara externa es 10x16 unidades = 40x64 px.
+CS = 6
 FW, FH = 10 * CS, 16 * CS
 yy, xx = np.mgrid[0:FH, 0:FW].astype(np.float32)
 Y, X = yy / FH, xx / FW

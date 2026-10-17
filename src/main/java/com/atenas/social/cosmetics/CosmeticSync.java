@@ -19,7 +19,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Comparte lo que llevas puesto y baja lo de los jugadores que tienes cerca.
- * Usa el mismo servicio (y la misma identidad) que Amigos: solo viaja tu nick y 3 ids de cosm\u00e9ticos.
+ * Usa el mismo servicio (y la misma identidad) que Amigos: solo viaja tu nick y 4 ids de cosm\u00e9ticos.
  */
 public final class CosmeticSync {
     private static final Map<String, String[]> REMOTE = new ConcurrentHashMap<>();
@@ -29,17 +29,34 @@ public final class CosmeticSync {
         t.setDaemon(true);
         return t;
     });
-    private static volatile boolean dirty = true;
-    private static long lastPush, lastFetch;
+    /** Empieza en false: primero se baja lo que hay en el servicio; solo se sube si cambias algo o el servicio no te conoce. */
+    private static volatile boolean dirty = false;
+    /** Sube con cada elecci\u00f3n tuya: una respuesta m\u00e1s vieja que tu \u00faltimo cambio se descarta. */
+    private static volatile int rev;
+    private static volatile boolean selfKnown;
+    private static final AtomicBoolean SELF = new AtomicBoolean();
+    private static long lastPush, lastFetch, lastSelf;
     private static String lastNames = "";
 
     private CosmeticSync() {}
 
-    public static void markDirty() { dirty = true; lastPush = 0; }
+    public static void markDirty() { dirty = true; rev++; lastPush = 0; }
+
+    /** Cambiaste de cuenta: se baja lo que ESA cuenta ten\u00eda elegido. */
+    public static void accountChanged() { dirty = false; selfKnown = false; lastSelf = 0; rev++; }
+
+    /** Sube cada vez que cambia lo que sabemos de otros jugadores: Cosmetics vuelve a resolver su cache. */
+    private static volatile int stamp;
+
+    public static int stamp() { return stamp; }
+
+    /** Ids de un jugador en el orden de Cosmetics.Type (capa, alas, sombrero, mascota), o null si no lo conocemos. */
+    public static String[] idsOf(String name) {
+        return name == null ? null : REMOTE.get(name.toLowerCase(Locale.ROOT));
+    }
 
     public static String get(String name, Cosmetics.Type t) {
-        if (name == null) return null;
-        String[] v = REMOTE.get(name.toLowerCase(Locale.ROOT));
+        String[] v = idsOf(name);
         return v == null ? null : v[t.ordinal()];
     }
 
@@ -55,10 +72,38 @@ public final class CosmeticSync {
                 Cosmetics.Item i = Cosmetics.selected(t);
                 b.addProperty(t.key(), i == null ? "none" : i.id);
             }
+            final int sent = rev;
             POOL.execute(() -> {
-                try { SocialClient.post("/cosmetics/set", b); dirty = false; }
+                try { SocialClient.post("/cosmetics/set", b); if (sent == rev) dirty = false; selfKnown = true; }
                 catch (Exception e) { lastPush = System.currentTimeMillis() + 11000; /* reintenta en ~15 s */ }
                 finally { PUSHING.set(false); }
+            });
+        }
+
+        // Lo TUYO: la primera vez y cada 30 s se baja del servicio, as\u00ed un cambio hecho en 1.8.9 aparece aqu\u00ed.
+        if (!dirty && !PUSHING.get() && now - lastSelf > (selfKnown ? 30000 : 5000) && SELF.compareAndSet(false, true)) {
+            lastSelf = now;
+            final int seen = rev;
+            final String me = SocialClient.myName().toLowerCase(Locale.ROOT);
+            POOL.execute(() -> {
+                try {
+                    JsonObject b = new JsonObject();
+                    JsonArray arr = new JsonArray();
+                    arr.add(me);
+                    b.add("names", arr);
+                    JsonObject players = SocialClient.post("/cosmetics/get", b).getAsJsonObject("players");
+                    JsonElement el = players.get(me);
+                    if (el != null && el.isJsonObject()) {
+                        JsonObject v = el.getAsJsonObject();
+                        selfKnown = true;
+                        mc.execute(() -> {
+                            if (seen != rev || dirty) return; // elegiste algo mientras tanto: gana lo tuyo
+                            for (Cosmetics.Type t : Cosmetics.Type.values()) Cosmetics.applyRemote(t, str(v, t.key()));
+                        });
+                    } else if (seen == rev) { selfKnown = true; dirty = true; /* el servicio no te conoce: sube lo que tienes */ }
+                } catch (Exception ignored) {
+                    lastSelf = System.currentTimeMillis() - 20000; // reintenta pronto
+                } finally { SELF.set(false); }
             });
         }
 
@@ -88,9 +133,13 @@ public final class CosmeticSync {
                     JsonElement el = players.get(n);
                     if (el != null && el.isJsonObject()) {
                         JsonObject v = el.getAsJsonObject();
-                        REMOTE.put(n, new String[] {str(v, "cape"), str(v, "wings"), str(v, "hat")});
+                        // un elemento por Cosmetics.Type, en el mismo orden (CAPE, WINGS, HAT, PET)
+                        String[] ids = new String[Cosmetics.Type.values().length];
+                        for (Cosmetics.Type t : Cosmetics.Type.values()) ids[t.ordinal()] = str(v, t.key());
+                        REMOTE.put(n, ids);
                     } else REMOTE.remove(n);
                 }
+                stamp++;
             } catch (Exception ignored) {
                 lastFetch = 0; // vuelve a intentarlo en el pr\u00f3ximo ciclo
             } finally { FETCHING.set(false); }
