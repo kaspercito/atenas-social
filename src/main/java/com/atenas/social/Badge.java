@@ -30,10 +30,13 @@ public final class Badge {
      * letras saldrian como cuadros vacios. Ademas se fija la fuente por defecto en el nombre por si ya traia la del logo.
      */
     private static MutableComponent withBadge(Component base) {
-        MutableComponent logo = Component.literal(GLYPH + " ").withStyle(Style.EMPTY.withFont(Ui.BADGE_FONT));
+        // Solo el logo va en la fuente "badge". El espacio de despues va en la fuente por defecto: la fuente "badge" no tiene
+        // el caracter " " y Minecraft lo dibuja como un cuadrito (el "error" que salia junto al nombre).
+        MutableComponent logo = Component.literal(GLYPH).withStyle(Style.EMPTY.withFont(Ui.BADGE_FONT));
+        MutableComponent gap = Component.literal(" ").withStyle(Style.EMPTY.withFont(Style.DEFAULT_FONT));
         MutableComponent rest = base.copy();
         if (Ui.BADGE_FONT.equals(rest.getStyle().getFont())) rest.setStyle(rest.getStyle().withFont(Style.DEFAULT_FONT));
-        return Component.empty().append(logo).append(rest);
+        return Component.empty().append(logo).append(gap).append(rest);
     }
 
     @SubscribeEvent

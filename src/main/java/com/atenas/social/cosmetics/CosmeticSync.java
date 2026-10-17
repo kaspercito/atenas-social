@@ -45,6 +45,9 @@ public final class CosmeticSync {
 
     public static void markDirty() { dirty = true; rev++; lastPush = 0; }
 
+    /** Pide ya lo que tienes elegido en el servicio (se llama al abrir el menu: un cambio hecho en el cliente 1.8.9 aparece al instante). */
+    public static void refreshNow() { lastSelf = 0; }
+
     /** Cambiaste de cuenta: se baja lo que ESA cuenta ten\u00eda elegido. */
     public static void accountChanged() { dirty = false; selfKnown = false; lastSelf = 0; rev++; }
 

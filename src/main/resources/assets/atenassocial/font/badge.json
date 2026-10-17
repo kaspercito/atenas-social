@@ -1,1 +1,1 @@
-{"providers": [{"type": "bitmap", "file": "atenassocial:font/atenas_logo.png", "ascent": 8, "height": 9, "chars": ["\ue000"]}]}
+{"providers": [{"type": "bitmap", "file": "atenassocial:font/atenas_logo.png", "ascent": 8, "height": 9, "chars": ["\ue000"]}, {"type": "space", "advances": {" ": 4}}]}

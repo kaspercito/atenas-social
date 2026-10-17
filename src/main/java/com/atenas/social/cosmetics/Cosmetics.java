@@ -242,7 +242,10 @@ public final class Cosmetics {
         if (id != null && id.equals(PENDING.get(t))) PENDING.remove(t);
         Item it = find(t, id);
         if (it != null) it.locked = true;
-        notice("No puedes llevar \"" + (it != null ? it.name : id) + "\": es privado.");
+        String nm = it != null ? it.name : id;
+        notice(com.atenas.social.SocialClient.verified()
+            ? "No puedes llevar \"" + nm + "\": es privado."
+            : "No se pudo verificar tu cuenta con Mojang, por eso \"" + nm + "\" (privado) fue rechazado.");
         save();
     }
 

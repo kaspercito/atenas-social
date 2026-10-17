@@ -27,6 +27,7 @@ public class CosmeticsScreen extends Screen {
 
     @Override
     protected void init() {
+        CosmeticSync.refreshNow();
         pw = Math.min(width - 16, 440);
         ph = Math.min(height - 16, 270);
         px = (width - pw) / 2;
@@ -58,6 +59,15 @@ public class CosmeticsScreen extends Screen {
         l.addAll(Cosmetics.visible(tab)); // sin los privados ajenos (ej. Catalina)
         return l;
     }
+
+
+    /** Recorta con "..." (antes se cortaba en seco: "Atenas (Ex", "Oceano al"). */
+    private String fit(String s, int w) {
+        if (font.width(s) <= w) return s;
+        return font.plainSubstrByWidth(s, Math.max(0, w - font.width("..."))) + "...";
+    }
+
+    private Cosmetics.Item hovered;
 
     private int cols() { return Math.max(1, (gw + GAP) / (CW + GAP)); }
 
@@ -108,6 +118,7 @@ public class CosmeticsScreen extends Screen {
         }
 
         // cuadr\u00edcula
+        hovered = null;
         g.enableScissor(gx, gy, gx + gw, gy + gh);
         List<Cosmetics.Item> list = entries();
         Cosmetics.Item cur = Cosmetics.selected(tab);
@@ -123,7 +134,8 @@ public class CosmeticsScreen extends Screen {
                 g.drawCenteredString(font, "Ninguno", x + CW / 2, y + CH - 14, on ? Ui.TEXT : Ui.MUTED);
             } else {
                 g.blit(it.icon, x + (CW - 32) / 2, y + 6, 32, 32, 0, 0, 32, 32, 32, 32);
-                g.drawCenteredString(font, font.plainSubstrByWidth(it.name, CW - 4), x + CW / 2, y + CH - 14, on ? Ui.TEXT : Ui.MUTED);
+                g.drawCenteredString(font, fit(it.name, CW - 4), x + CW / 2, y + CH - 14, on ? Ui.TEXT : Ui.MUTED);
+                if (hot) hovered = it;
             }
             if (on) g.fill(x + CW - 9, y + 3, x + CW - 3, y + 9, Ui.ACCENT_LIGHT);
         }
@@ -156,14 +168,21 @@ public class CosmeticsScreen extends Screen {
                 g.drawCenteredString(font, "para verte puesto", rx + rw / 2, ry + rh / 2 - 3, Ui.MUTED);
             }
         }
-        int ly = ry + rh - 12;
         StringBuilder sb = new StringBuilder();
         for (Cosmetics.Type t : Cosmetics.Type.values()) {
             Cosmetics.Item s = Cosmetics.selected(t);
             if (s != null) { if (sb.length() > 0) sb.append(" \u00b7 "); sb.append(s.name); }
         }
-        g.drawCenteredString(font, font.plainSubstrByWidth(sb.length() == 0 ? "Sin cosm\u00e9ticos" : sb.toString(), rw - 6), rx + rw / 2, ly, Ui.MUTED);
+        // el resumen puede ser largo (capa + alas + sombrero + mascota): se parte en hasta 2 lineas en vez de cortarse
+        java.util.List<net.minecraft.util.FormattedCharSequence> lines = font.split(
+            net.minecraft.network.chat.Component.literal(sb.length() == 0 ? "Sin cosm\u00e9ticos" : sb.toString()), rw - 6);
+        int shown = Math.min(2, lines.size()), ly = ry + rh - 3 - shown * 9;
+        for (int li = 0; li < shown; li++) {
+            net.minecraft.util.FormattedCharSequence ln = lines.get(li);
+            g.drawString(font, ln, rx + (rw - font.width(ln)) / 2, ly + li * 9, Ui.MUTED, false);
+        }
 
         super.render(g, mx, my, pt);
+        if (hovered != null && font.width(hovered.name) > CW - 4) g.renderTooltip(font, net.minecraft.network.chat.Component.literal(hovered.name), mx, my);
     }
 }
