@@ -34,14 +34,26 @@ public final class Cosmetics {
         public final int color;
         /** Se dibuja con luz máxima (brilla de noche). */
         public final boolean glow;
+        /** Capa animada: la textura es una tira vertical de ANIM_FRAMES imagenes. 1 = capa normal. */
+        public final int frames;
         public final ResourceLocation texture, icon;
 
-        Item(Type type, String id, String name, int color, boolean glow) {
+        Item(Type type, String id, String name, int color, boolean glow, int frames) {
+            this.frames = frames;
             this.type = type; this.id = id; this.name = name; this.color = color; this.glow = glow;
             this.texture = new ResourceLocation(MODID, "textures/cosmetics/" + type.folder + "/" + id + ".png");
             this.icon = new ResourceLocation(MODID, "textures/cosmetics/icons/" + type.key() + "_" + id + ".png");
         }
     }
+
+    /** Fotogramas de toda capa animada (el modelo trae una pieza por fotograma). */
+    public static final int ANIM_FRAMES = 12;
+    /** Milisegundos por fotograma (~11 fps). */
+    public static final int FRAME_MS = 90;
+    /** Los cosmeticos de otros jugadores solo se dibujan dentro de esta distancia (bloques al cuadrado). */
+    public static final double MAX_DIST_SQ = 40.0 * 40.0;
+    /** Capas animadas encendidas; apagadas se ve el primer fotograma. */
+    public static boolean animate = true;
 
     public static final List<Item> ALL = new ArrayList<>();
     private static final Map<Type, Item> SELECTED = new EnumMap<>(Type.class);
@@ -61,6 +73,12 @@ public final class Cosmetics {
         add(Type.CAPE, "oro", "Oro", 0xFFE8B923, false);
         add(Type.CAPE, "noche", "Noche", 0xFF2B2F6B, false);
         add(Type.CAPE, "creeper", "Creeper", 0xFF4CAF50, false);
+        addAnim(Type.CAPE, "llamas", "Llamas (anim)", 0xFFFF6A00, true);
+        addAnim(Type.CAPE, "aurora", "Aurora (anim)", 0xFF35E0A8, true);
+        addAnim(Type.CAPE, "cosmos", "Cosmos (anim)", 0xFF7B4DFF, true);
+        addAnim(Type.CAPE, "lluvia", "Lluvia Matrix (anim)", 0xFF22DD66, true);
+        addAnim(Type.CAPE, "mareas", "Mareas (anim)", 0xFF1E9FE8, false);
+        addAnim(Type.CAPE, "pulso", "Pulso Ne\u00f3n (anim)", 0xFFEC4899, true);
 
         add(Type.WINGS, "doradas", "Doradas", 0xFFF5C542, false);
         add(Type.WINGS, "oscuras", "Oscuras", 0xFF8E2DE2, false);
@@ -86,7 +104,21 @@ public final class Cosmetics {
 
     private Cosmetics() {}
 
-    private static void add(Type t, String id, String name, int color, boolean glow) { ALL.add(new Item(t, id, name, color, glow)); }
+    private static void add(Type t, String id, String name, int color, boolean glow) { ALL.add(new Item(t, id, name, color, glow, 1)); }
+
+    private static void addAnim(Type t, String id, String name, int color, boolean glow) { ALL.add(new Item(t, id, name, color, glow, ANIM_FRAMES)); }
+
+    /** Fotograma actual de una capa animada (0 si esta apagado o no es animada). */
+    public static int frameOf(Item it) {
+        if (it.frames <= 1 || !animate) return 0;
+        return (int) ((net.minecraft.Util.getMillis() / FRAME_MS) % it.frames);
+    }
+
+    /** True si este jugador esta lo bastante cerca como para dibujarle cosmeticos (el tuyo siempre). */
+    public static boolean inRange(AbstractClientPlayer p) {
+        Minecraft mc = Minecraft.getInstance();
+        return mc.player == null || p == mc.player || p.distanceToSqr(mc.player) <= MAX_DIST_SQ;
+    }
 
     public static List<Item> of(Type t) {
         List<Item> out = new ArrayList<>();
@@ -126,13 +158,17 @@ public final class Cosmetics {
                 Item it = o.has(t.key()) ? find(t, o.get(t.key()).getAsString()) : null;
                 if (it != null) SELECTED.put(t, it);
             }
+            if (o.has("animate")) animate = o.get("animate").getAsBoolean();
         } catch (Exception e) { System.err.println("[AtenasSocial] cosm\u00e9ticos: " + e); }
     }
+
+    public static void toggleAnimate() { animate = !animate; save(); }
 
     private static void save() {
         try {
             JsonObject o = new JsonObject();
             for (Type t : Type.values()) o.addProperty(t.key(), SELECTED.containsKey(t) ? SELECTED.get(t).id : "none");
+            o.addProperty("animate", animate);
             Files.write(file(), o.toString().getBytes(StandardCharsets.UTF_8));
         } catch (IOException e) { System.err.println("[AtenasSocial] guardar cosm\u00e9ticos: " + e.getMessage()); }
     }

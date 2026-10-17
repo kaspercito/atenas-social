@@ -40,8 +40,15 @@ public class CosmeticsScreen extends Screen {
             addRenderableWidget(new Ui.Btn(gx + i * (tw + 4), py + 26, tw, 18, Component.literal(t.label), false, b -> { tab = tt; scroll = 0; }));
             i++;
         }
+        final Ui.Btn anim = new Ui.Btn(px + pw - PREVIEW_W - 4, py + ph - 48, PREVIEW_W - 4, 18, animLabel(), false, b -> {
+            Cosmetics.toggleAnimate();
+            b.setMessage(animLabel());
+        });
+        addRenderableWidget(anim);
         addRenderableWidget(new Ui.Btn(px + pw - PREVIEW_W - 4, py + ph - 26, PREVIEW_W - 4 + 0, 18, Component.literal("Listo"), true, b -> onClose()));
     }
+
+    private static Component animLabel() { return Component.literal("Animadas: " + (Cosmetics.animate ? "S\u00ed" : "No")); }
 
     private List<Cosmetics.Item> entries() {
         List<Cosmetics.Item> l = new ArrayList<>();
@@ -119,7 +126,7 @@ public class CosmeticsScreen extends Screen {
         g.disableScissor();
 
         // vista previa
-        int rx = px + pw - PREVIEW_W - 4, ry = py + 26, rw = PREVIEW_W - 4, rh = ph - 58;
+        int rx = px + pw - PREVIEW_W - 4, ry = py + 26, rw = PREVIEW_W - 4, rh = ph - 80;
         g.fill(rx, ry, rx + rw, ry + rh, Ui.NIGHT);
         Ui.border(g, rx, ry, rw, rh, Ui.LINE);
         Minecraft mc = Minecraft.getInstance();
