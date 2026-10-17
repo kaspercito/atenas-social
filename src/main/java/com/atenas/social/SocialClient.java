@@ -67,7 +67,10 @@ public final class SocialClient {
     private static String verifiedFor = "";
     private static String failedFor = "";
     private static long failedAt;
-    private static final long RETRY_UNVERIFIED_MS = 30L * 60L * 1000L;
+    private static final long RETRY_UNVERIFIED_MS = 5L * 60L * 1000L;
+    /** Por que fallo la ultima verificacion (vacio si fue bien o aun no se intento). Tambien sale en latest.log con el prefijo [AtenasSocial]. */
+    private static volatile String verifyError = "";
+    public static String verifyError() { return verifyError; }
     private static volatile Snapshot snap;
     private static volatile String status = "loading"; // loading | ok | error | noaccount
     private static volatile String error = "";
@@ -162,16 +165,23 @@ public final class SocialClient {
                 mc.getMinecraftSessionService().joinServer(mc.getUser().getGameProfile(), mc.getUser().getAccessToken(), str(ch, "serverId"));
             } catch (Exception e) {
                 failedFor = name; failedAt = System.currentTimeMillis(); // Mojang no aceptó la sesión: cuenta sin conexión o sesión caducada
+                verifyError = "Mojang rechazó la sesión del juego (" + e.getClass().getSimpleName() + ": " + e.getMessage() + ")";
+                System.err.println("[AtenasSocial] verificación: " + verifyError + " · nick=" + name);
                 return;
             }
             rawPost("/auth/verify", new JsonObject());
             verifiedFor = name;
             failedFor = "";
+            verifyError = "";
         } catch (ApiError e) {
+            verifyError = "el servicio respondió " + e.code + ": " + e.getMessage();
+            System.err.println("[AtenasSocial] verificación: " + verifyError + " · nick=" + name);
             if (!"mojang_down".equals(e.code) && !"too_many".equals(e.code) && !"no_challenge".equals(e.code) && !"server".equals(e.code)) {
                 failedFor = name; failedAt = System.currentTimeMillis(); // el servicio dijo que no: se reintenta más tarde
             }
         } catch (IOException e) {
+            verifyError = "sin conexión con el servicio de verificación (" + e.getMessage() + ")";
+            System.err.println("[AtenasSocial] verificación: " + verifyError);
             // sin internet: se reintenta en la próxima llamada
         }
     }

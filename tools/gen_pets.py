@@ -110,7 +110,10 @@ def paint(variant, spec, seed):
         tt = F[t]
         for n in tt:
             tip = spec.get("tail_tip", base) if t == "tail2" else base
-            sh.fill(tt[n], base if t == "tail1" else tip, tip if t == "tail2" else base, 0.05)
+            if t == "tail1" and spec.get("tail1_end"):
+                sh.fill(tt[n], base, spec["tail1_end"], 0.06)   # base blanca que se oscurece hacia la punta
+            else:
+                sh.fill(tt[n], base if t == "tail1" else tip, tip if t == "tail2" else base, 0.05)
 
     rng = random.Random(seed)
     # ---- manchas / rayas del pelaje (sobre cuerpo y cabeza)
@@ -123,6 +126,10 @@ def paint(variant, spec, seed):
                 for _ in range(max(2, w * h // 9)):
                     cx, cy, r = rng.uniform(0, w), rng.uniform(0, h), rng.uniform(.5, 1.3)
                     d.ellipse([U(cx - r), U(cy - r * .85), U(cx + r), U(cy + r * .85)], fill=spec["mark"] + (255,))
+                if spec.get("mark2"):   # segundo color de manchas (gato calico)
+                    for _ in range(max(1, w * h // 14)):
+                        cx, cy, r = rng.uniform(0, w), rng.uniform(0, h), rng.uniform(.6, 1.5)
+                        d.ellipse([U(cx - r), U(cy - r * .85), U(cx + r), U(cy + r * .85)], fill=spec["mark2"] + (255,))
             elif pat == "tabby":
                 if n in ("top", "right", "left", "htop", "hright", "hleft"):
                     for i in range(int(w) + 1):
@@ -138,6 +145,25 @@ def paint(variant, spec, seed):
         d.polygon([(0, U(h * .6)), (U(w * .5), U(h * .45)), (U(w), U(h * .6)), (U(w), U(h)), (0, U(h))], fill=spec["belly"] + (255,))
         sh.commit(layer, hd["front"])
         layer, d, (x, y, w, h) = sh.draw(b["front"]); d.rectangle([0, U(h * .4), U(w), U(h)], fill=spec["belly"] + (255,)); sh.commit(layer, b["front"])
+
+    if pat == "patches":   # bicolor: manchas oscuras a cada lado de la cara y franja blanca en medio
+        M = spec["mark"] + (255,)
+        def poly(rect, pts):
+            layer, d, (x, y, w, h) = sh.draw(rect)
+            d.polygon([(U(px * w), U(py * h)) for px, py in pts], fill=M)
+            sh.commit(layer, rect)
+        # frente: la mancha izquierda baja mas y rodea el ojo; la derecha es algo mas corta (como en la foto)
+        poly(hd["front"], [(0, 0), (.40, 0), (.37, .30), (.42, .62), (.30, .84), (.10, .80), (0, .70)])
+        poly(hd["front"], [(.62, 0), (1, 0), (1, .62), (.88, .74), (.70, .66), (.66, .36)])
+        # arriba: dos bandas oscuras (orejas) y el centro blanco
+        poly(hd["top"], [(0, 0), (.38, 0), (.34, 1), (0, 1)])
+        poly(hd["top"], [(.64, 0), (1, 0), (1, 1), (.68, 1)])
+        # costados: la parte de arriba (donde nace la oreja) es oscura, la mejilla queda blanca
+        poly(hd["right"], [(0, 0), (1, 0), (1, .55), (.55, .70), (0, .50)])
+        poly(hd["left"], [(0, 0), (1, 0), (1, .50), (.45, .66), (0, .55)])
+        # nuca
+        poly(hd["back"], [(0, 0), (.36, 0), (.32, .60), (0, .50)])
+        poly(hd["back"], [(.64, 0), (1, 0), (1, .50), (.68, .60)])
 
     # ---- cara: ojos, nariz, boca (cara frontal de la cabeza)
     layer, d, (x, y, w, h) = sh.draw(hd["front"])
@@ -199,10 +225,18 @@ PETS = {
                      nose=(200, 110, 130), eye=(232, 232, 70), muzzle=(54, 54, 66), tail_tip=(30, 30, 40), pattern=None),
     "zorro":    dict(model="fox", base=(232, 112, 40), belly=(250, 244, 236), dark=(196, 86, 24), ear=(224, 100, 34), ear_in=(250, 220, 200),
                      nose=(22, 18, 20), eye=(110, 60, 20), muzzle=(250, 244, 236), tail_tip=(252, 248, 240), pattern="fox", sock=(40, 30, 28)),
+    # Catalina: gata blanca con dos manchas negras en la cara (ojos y orejas), patas blancas y cola larga gris oscura. Privada:
+    # solo la ven y la eligen los nicks que le des en /admin.
+    "catalina": dict(model="cat", base=(247, 245, 243), belly=(255, 254, 252), dark=(238, 235, 232), ear=(40, 36, 40), ear_in=(150, 110, 116),
+                     nose=(236, 150, 160), eye=(110, 200, 90), muzzle=(255, 254, 252), tail_tip=(48, 44, 48), tail1_end=(70, 64, 68),
+                     pattern="patches", mark=(30, 27, 31), sock=(255, 253, 250)),
 }
 
 if __name__ == "__main__":
+    import sys
+    only = sys.argv[1:]   # p. ej. `python3 tools/gen_pets.py catalina` regenera solo esa
     for i, (n, spec) in enumerate(PETS.items()):
+        if only and n not in only: continue
         paint(n, spec, 100 + i)
     for k, v in LAYOUT.items():
         print(k, v)
