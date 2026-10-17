@@ -1,0 +1,103 @@
+package com.atenas.social.cosmetics;
+
+import com.atenas.social.SocialClient;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.player.AbstractClientPlayer;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicBoolean;
+
+/**
+ * Comparte lo que llevas puesto y baja lo de los jugadores que tienes cerca.
+ * Usa el mismo servicio (y la misma identidad) que Amigos: solo viaja tu nick y 3 ids de cosm\u00e9ticos.
+ */
+public final class CosmeticSync {
+    private static final Map<String, String[]> REMOTE = new ConcurrentHashMap<>();
+    private static final AtomicBoolean PUSHING = new AtomicBoolean(), FETCHING = new AtomicBoolean();
+    private static final ExecutorService POOL = Executors.newSingleThreadExecutor(r -> {
+        Thread t = new Thread(r, "Atenas-Cosmetics");
+        t.setDaemon(true);
+        return t;
+    });
+    private static volatile boolean dirty = true;
+    private static long lastPush, lastFetch;
+    private static String lastNames = "";
+
+    private CosmeticSync() {}
+
+    public static void markDirty() { dirty = true; lastPush = 0; }
+
+    public static String get(String name, Cosmetics.Type t) {
+        if (name == null) return null;
+        String[] v = REMOTE.get(name.toLowerCase(Locale.ROOT));
+        return v == null ? null : v[t.ordinal()];
+    }
+
+    /** Una vez por segundo desde el tick del cliente. */
+    public static void tick(Minecraft mc) {
+        if (!SocialClient.validName(SocialClient.myName())) return;
+        long now = System.currentTimeMillis();
+
+        if (dirty && now - lastPush > 4000 && PUSHING.compareAndSet(false, true)) {
+            lastPush = now;
+            JsonObject b = new JsonObject();
+            for (Cosmetics.Type t : Cosmetics.Type.values()) {
+                Cosmetics.Item i = Cosmetics.selected(t);
+                b.addProperty(t.key(), i == null ? "none" : i.id);
+            }
+            POOL.execute(() -> {
+                try { SocialClient.post("/cosmetics/set", b); dirty = false; }
+                catch (Exception e) { lastPush = System.currentTimeMillis() + 11000; /* reintenta en ~15 s */ }
+                finally { PUSHING.set(false); }
+            });
+        }
+
+        if (mc.level == null || mc.player == null) return;
+        List<String> names = new ArrayList<>();
+        for (AbstractClientPlayer p : mc.level.players()) {
+            if (p == mc.player) continue;
+            String n = p.getGameProfile().getName();
+            if (SocialClient.validName(n)) names.add(n.toLowerCase(Locale.ROOT));
+        }
+        if (names.isEmpty()) return;
+        Collections.sort(names);
+        if (names.size() > 40) names = new ArrayList<>(names.subList(0, 40));
+        String joined = String.join(",", names);
+        if ((joined.equals(lastNames) && now - lastFetch < 25000) || !FETCHING.compareAndSet(false, true)) return;
+        lastNames = joined;
+        lastFetch = now;
+        final List<String> wanted = names;
+        POOL.execute(() -> {
+            try {
+                JsonObject b = new JsonObject();
+                JsonArray arr = new JsonArray();
+                for (String n : wanted) arr.add(n);
+                b.add("names", arr);
+                JsonObject players = SocialClient.post("/cosmetics/get", b).getAsJsonObject("players");
+                for (String n : wanted) {
+                    JsonElement el = players.get(n);
+                    if (el != null && el.isJsonObject()) {
+                        JsonObject v = el.getAsJsonObject();
+                        REMOTE.put(n, new String[] {str(v, "cape"), str(v, "wings"), str(v, "hat")});
+                    } else REMOTE.remove(n);
+                }
+            } catch (Exception ignored) {
+                lastFetch = 0; // vuelve a intentarlo en el pr\u00f3ximo ciclo
+            } finally { FETCHING.set(false); }
+        });
+    }
+
+    private static String str(JsonObject o, String k) {
+        return (o.has(k) && !o.get(k).isJsonNull()) ? o.get(k).getAsString() : null;
+    }
+}
