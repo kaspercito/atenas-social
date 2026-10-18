@@ -110,47 +110,152 @@ public final class CosmeticRender {
         MeshDefinition m = new MeshDefinition();
         PartDefinition r = m.getRoot();
 
-        hat(r, "halo", CubeListBuilder.create().texOffs(0, 0)
-            .addBox(-5f, -12f, -5f, 10, 1, 1).addBox(-5f, -12f, 4f, 10, 1, 1)
-            .addBox(-5f, -12f, -4f, 1, 1, 8).addBox(4f, -12f, -4f, 1, 1, 8));
+        hat(r, "halo", CubeListBuilder.create()
+            .texOffs(0, 0)
+            .addBox(-5.0f, -12.0f, -5.0f, 10, 1, 1)
+            .addBox(-5.0f, -12.0f, 4.0f, 10, 1, 1)
+            .addBox(-5.0f, -12.0f, -4.0f, 1, 1, 8)
+            .addBox(4.0f, -12.0f, -4.0f, 1, 1, 8)
+            .addBox(-4.0f, -13.0f, -4.0f, 8, 1, 1, new CubeDeformation(-0.2f))
+            .addBox(-4.0f, -13.0f, 3.0f, 8, 1, 1, new CubeDeformation(-0.2f))
+            .addBox(-4.0f, -13.0f, -3.0f, 1, 1, 6, new CubeDeformation(-0.2f))
+            .addBox(3.0f, -13.0f, -3.0f, 1, 1, 6, new CubeDeformation(-0.2f))
+            .texOffs(0, 48)
+            .addBox(-1.0f, -12.0f, -6.0f, 2, 1, 1)
+            .addBox(-1.0f, -12.0f, 5.0f, 2, 1, 1)
+            .addBox(-6.0f, -12.0f, -1.0f, 1, 1, 2)
+            .addBox(5.0f, -12.0f, -1.0f, 1, 1, 2));
 
-        hat(r, "corona", CubeListBuilder.create().texOffs(0, 0)
-            .addBox(-5f, -10f, -5f, 10, 2, 1).addBox(-5f, -10f, 4f, 10, 2, 1)
-            .addBox(-5f, -10f, -4f, 1, 2, 8).addBox(4f, -10f, -4f, 1, 2, 8)
-            .addBox(-5f, -13f, -5f, 2, 3, 2).addBox(3f, -13f, -5f, 2, 3, 2)
-            .addBox(-5f, -13f, 3f, 2, 3, 2).addBox(3f, -13f, 3f, 2, 3, 2)
-            .addBox(-1f, -12f, -5f, 2, 2, 1).addBox(-1f, -12f, 4f, 2, 2, 1));
+        hat(r, "corona", CubeListBuilder.create()
+            .texOffs(0, 0)
+            .addBox(-5.0f, -10.0f, -5.0f, 10, 2, 1)
+            .addBox(-5.0f, -10.0f, 4.0f, 10, 2, 1)
+            .addBox(-5.0f, -10.0f, -4.0f, 1, 2, 8)
+            .addBox(4.0f, -10.0f, -4.0f, 1, 2, 8)
+            .addBox(-5.0f, -13.0f, -5.0f, 2, 3, 2)
+            .addBox(3.0f, -13.0f, -5.0f, 2, 3, 2)
+            .addBox(-5.0f, -13.0f, 3.0f, 2, 3, 2)
+            .addBox(3.0f, -13.0f, 3.0f, 2, 3, 2)
+            .addBox(-1.0f, -12.0f, -5.0f, 2, 2, 1)
+            .addBox(-1.0f, -12.0f, 4.0f, 2, 2, 1)
+            .addBox(-5.0f, -12.0f, -1.0f, 1, 2, 2)
+            .addBox(4.0f, -12.0f, -1.0f, 1, 2, 2)
+            .addBox(-5.0f, -14.0f, -5.0f, 1, 1, 1)
+            .addBox(4.0f, -14.0f, -5.0f, 1, 1, 1)
+            .addBox(-5.0f, -14.0f, 4.0f, 1, 1, 1)
+            .addBox(4.0f, -14.0f, 4.0f, 1, 1, 1)
+            .addBox(-1.0f, -13.0f, -5.0f, 2, 1, 1, new CubeDeformation(-0.25f))
+            .addBox(-1.0f, -13.0f, 4.0f, 2, 1, 1, new CubeDeformation(-0.25f))
+            .texOffs(0, 48)
+            .addBox(-1.0f, -9.0f, -6.0f, 2, 1, 1)
+            .addBox(-6.0f, -9.0f, -1.0f, 1, 1, 2)
+            .addBox(5.0f, -9.0f, -1.0f, 1, 1, 2)
+            .addBox(-1.0f, -9.0f, 5.0f, 2, 1, 1)
+            .addBox(-4.0f, -11.0f, -6.0f, 1, 1, 1)
+            .addBox(3.0f, -11.0f, -6.0f, 1, 1, 1));
 
-        hat(r, "galera", CubeListBuilder.create().texOffs(0, 0).addBox(-6f, -9f, -6f, 12, 1, 12)
-            .texOffs(0, 16).addBox(-4f, -16f, -4f, 8, 7, 8)
-            .texOffs(0, 32).addBox(-4f, -11f, -4f, 8, 2, 8, new CubeDeformation(0.25f)));
+        hat(r, "galera", CubeListBuilder.create()
+            .texOffs(0, 0)
+            .addBox(-6.0f, -9.0f, -6.0f, 12, 1, 12)
+            .addBox(-4.0f, -16.0f, -4.0f, 8, 7, 8)
+            .addBox(-4.0f, -17.0f, -4.0f, 8, 1, 8, new CubeDeformation(-0.3f))
+            .addBox(-6.0f, -10.0f, -6.0f, 12, 1, 12, new CubeDeformation(-0.45f))
+            .texOffs(0, 32)
+            .addBox(-4.0f, -11.0f, -4.0f, 8, 2, 8, new CubeDeformation(0.25f))
+            .texOffs(0, 48)
+            .addBox(3.0f, -13.0f, -5.0f, 1, 3, 2)
+            .addBox(4.0f, -14.0f, -5.0f, 1, 2, 1)
+            .addBox(-1.0f, -11.0f, -5.0f, 2, 2, 1, new CubeDeformation(0.1f)));
 
-        hat(r, "gato", CubeListBuilder.create().texOffs(0, 0)
-            .addBox(-4f, -11f, -3f, 3, 3, 2).addBox(1f, -11f, -3f, 3, 3, 2)
-            .addBox(-4f, -13f, -3f, 1, 2, 2).addBox(3f, -13f, -3f, 1, 2, 2)
-            .texOffs(0, 48).addBox(-3.5f, -10.5f, -3.2f, 2, 2, 1).addBox(1.5f, -10.5f, -3.2f, 2, 2, 1));
+        hat(r, "gato", CubeListBuilder.create()
+            .texOffs(0, 0)
+            .addBox(-4.0f, -11.0f, -3.0f, 3, 3, 2)
+            .addBox(1.0f, -11.0f, -3.0f, 3, 3, 2)
+            .addBox(-4.0f, -13.0f, -3.0f, 1, 2, 2)
+            .addBox(3.0f, -13.0f, -3.0f, 1, 2, 2)
+            .addBox(-4.0f, -14.0f, -3.0f, 1, 1, 1, new CubeDeformation(-0.2f))
+            .addBox(3.0f, -14.0f, -3.0f, 1, 1, 1, new CubeDeformation(-0.2f))
+            .addBox(-4.0f, -9.0f, -4.0f, 8, 1, 8, new CubeDeformation(0.2f))
+            .texOffs(0, 48)
+            .addBox(-3.0f, -10.0f, -4.0f, 2, 2, 1)
+            .addBox(1.0f, -10.0f, -4.0f, 2, 2, 1)
+            .addBox(-3.0f, -12.0f, -3.0f, 1, 1, 1, new CubeDeformation(-0.15f))
+            .addBox(2.0f, -12.0f, -3.0f, 1, 1, 1, new CubeDeformation(-0.15f))
+            .addBox(-1.0f, -9.0f, -5.0f, 2, 1, 1, new CubeDeformation(0.1f)));
 
-        hat(r, "cuernos", CubeListBuilder.create().texOffs(0, 0)
-            .addBox(-5f, -10f, -1f, 2, 2, 2).addBox(3f, -10f, -1f, 2, 2, 2)
-            .addBox(-5.5f, -12f, -0.5f, 1, 2, 1).addBox(4.5f, -12f, -0.5f, 1, 2, 1)
-            .texOffs(0, 48).addBox(-6f, -14f, -0.5f, 1, 2, 1).addBox(5f, -14f, -0.5f, 1, 2, 1));
+        hat(r, "cuernos", CubeListBuilder.create()
+            .texOffs(0, 0)
+            .addBox(-6.0f, -10.0f, -2.0f, 3, 2, 3)
+            .addBox(3.0f, -10.0f, -2.0f, 3, 2, 3)
+            .addBox(-6.0f, -12.0f, -1.0f, 2, 2, 2)
+            .addBox(4.0f, -12.0f, -1.0f, 2, 2, 2)
+            .addBox(-7.0f, -14.0f, -1.0f, 2, 2, 2, new CubeDeformation(-0.2f))
+            .addBox(5.0f, -14.0f, -1.0f, 2, 2, 2, new CubeDeformation(-0.2f))
+            .addBox(-8.0f, -16.0f, -1.0f, 1, 2, 1)
+            .addBox(7.0f, -16.0f, -1.0f, 1, 2, 1)
+            .texOffs(0, 48)
+            .addBox(-8.0f, -18.0f, -1.0f, 1, 2, 1, new CubeDeformation(-0.15f))
+            .addBox(7.0f, -18.0f, -1.0f, 1, 2, 1, new CubeDeformation(-0.15f))
+            .addBox(-8.0f, -17.0f, -1.0f, 1, 1, 1, new CubeDeformation(0.1f))
+            .addBox(7.0f, -17.0f, -1.0f, 1, 1, 1, new CubeDeformation(0.1f)));
 
-        hat(r, "mago", CubeListBuilder.create().texOffs(0, 0)
-            .addBox(-7f, -9f, -7f, 14, 1, 14).addBox(-4f, -12f, -4f, 8, 3, 8)
-            .addBox(-3f, -15f, -3f, 6, 3, 6).addBox(-2f, -18f, -2f, 4, 3, 4).addBox(-1f, -20f, -1f, 2, 2, 2)
-            .texOffs(0, 48).addBox(-4f, -10f, -4f, 8, 1, 8, new CubeDeformation(0.3f)));
+        hat(r, "mago", CubeListBuilder.create()
+            .texOffs(0, 0)
+            .addBox(-7.0f, -9.0f, -7.0f, 14, 1, 14)
+            .addBox(-4.0f, -12.0f, -4.0f, 8, 3, 8)
+            .addBox(-3.0f, -15.0f, -3.0f, 6, 3, 6)
+            .addBox(-2.0f, -18.0f, -2.0f, 4, 3, 4)
+            .addBox(-1.0f, -20.0f, -1.0f, 2, 2, 2)
+            .addBox(0.0f, -22.0f, 0.0f, 2, 2, 2)
+            .addBox(1.0f, -23.0f, 1.0f, 1, 1, 2, new CubeDeformation(-0.1f))
+            .addBox(-7.0f, -10.0f, -7.0f, 14, 1, 14, new CubeDeformation(-0.4f))
+            .texOffs(0, 48)
+            .addBox(-4.0f, -10.0f, -4.0f, 8, 1, 8, new CubeDeformation(0.3f))
+            .addBox(-1.0f, -10.0f, -5.0f, 2, 2, 1, new CubeDeformation(0.2f))
+            .addBox(2.0f, -13.0f, -5.0f, 1, 1, 1)
+            .addBox(-3.0f, -16.0f, -4.0f, 1, 1, 1)
+            .addBox(1.0f, -17.0f, -3.0f, 1, 1, 1)
+            .addBox(-3.0f, -11.0f, -5.0f, 1, 1, 1));
 
-        hat(r, "auriculares", CubeListBuilder.create().texOffs(0, 0)
-            .addBox(-5.5f, -10f, -0.5f, 11, 1, 1).addBox(-5.5f, -9f, -0.5f, 1, 4, 1).addBox(4.5f, -9f, -0.5f, 1, 4, 1)
-            .addBox(-6.5f, -5f, -2f, 2, 4, 4).addBox(4.5f, -5f, -2f, 2, 4, 4)
-            .texOffs(0, 48).addBox(-7f, -4.5f, -1f, 1, 3, 2).addBox(6f, -4.5f, -1f, 1, 3, 2));
+        hat(r, "auriculares", CubeListBuilder.create()
+            .texOffs(0, 0)
+            .addBox(-5.0f, -10.0f, -1.0f, 11, 1, 2)
+            .addBox(-6.0f, -9.0f, -1.0f, 1, 4, 2)
+            .addBox(5.0f, -9.0f, -1.0f, 1, 4, 2)
+            .addBox(-7.0f, -5.0f, -3.0f, 2, 4, 5)
+            .addBox(5.0f, -5.0f, -3.0f, 2, 4, 5)
+            .addBox(-6.0f, -10.0f, -1.0f, 1, 1, 2, new CubeDeformation(-0.1f))
+            .addBox(5.0f, -10.0f, -1.0f, 1, 1, 2, new CubeDeformation(-0.1f))
+            .texOffs(0, 48)
+            .addBox(-8.0f, -4.0f, -2.0f, 1, 3, 3)
+            .addBox(7.0f, -4.0f, -2.0f, 1, 3, 3)
+            .addBox(-7.0f, -2.0f, -5.0f, 1, 1, 3)
+            .addBox(-7.0f, -2.0f, -6.0f, 2, 1, 1, new CubeDeformation(0.1f))
+            .addBox(-2.0f, -11.0f, -1.0f, 4, 1, 2, new CubeDeformation(-0.15f)));
 
-        hat(r, "conejo", CubeListBuilder.create().texOffs(0, 0)
-            .addBox(-3.5f, -17f, -1f, 2, 9, 1).addBox(1.5f, -17f, -1f, 2, 9, 1)
-            .texOffs(0, 48).addBox(-3f, -16f, -1.2f, 1, 7, 1).addBox(2f, -16f, -1.2f, 1, 7, 1));
+        hat(r, "conejo", CubeListBuilder.create()
+            .texOffs(0, 0)
+            .addBox(-4.0f, -17.0f, -1.0f, 2, 9, 1)
+            .addBox(2.0f, -17.0f, -1.0f, 2, 9, 1)
+            .addBox(-4.0f, -19.0f, -2.0f, 2, 2, 2, new CubeDeformation(-0.1f))
+            .addBox(2.0f, -19.0f, -2.0f, 2, 2, 2, new CubeDeformation(-0.1f))
+            .addBox(-4.0f, -9.0f, -4.0f, 8, 1, 8, new CubeDeformation(0.2f))
+            .texOffs(0, 48)
+            .addBox(-3.0f, -16.0f, -1.0f, 1, 7, 1)
+            .addBox(3.0f, -16.0f, -1.0f, 1, 7, 1)
+            .addBox(-3.0f, -18.0f, -2.0f, 1, 1, 1)
+            .addBox(3.0f, -18.0f, -2.0f, 1, 1, 1));
 
-        hat(r, "gorra", CubeListBuilder.create().texOffs(0, 0).addBox(-4f, -9f, -4f, 8, 2, 8, new CubeDeformation(0.5f))
-            .texOffs(0, 48).addBox(-4f, -8.5f, -8f, 8, 1, 4).addBox(-0.5f, -10.5f, -0.5f, 1, 1, 1));
+        hat(r, "gorra", CubeListBuilder.create()
+            .texOffs(0, 0)
+            .addBox(-4.0f, -9.0f, -4.0f, 8, 2, 8, new CubeDeformation(0.5f))
+            .addBox(-4.0f, -10.0f, -4.0f, 8, 1, 8, new CubeDeformation(0.2f))
+            .texOffs(0, 48)
+            .addBox(-4.0f, -8.0f, -8.0f, 8, 1, 4)
+            .addBox(-5.0f, -8.0f, -6.0f, 1, 1, 2)
+            .addBox(4.0f, -8.0f, -6.0f, 1, 1, 2)
+            .addBox(-1.0f, -11.0f, -1.0f, 2, 1, 2, new CubeDeformation(-0.25f))
+            .addBox(-2.0f, -9.0f, -5.0f, 4, 2, 1));
 
         return LayerDefinition.create(m, 64, 64);
     }
@@ -188,7 +293,7 @@ public final class CosmeticRender {
 
             ps.pushPose();
             // pegada a la espalda (la de Mojang va a 0.125); con alas puestas NO se aleja: las alas nacen detrás de la capa (WingMesh.zoff)
-            ps.translate(0.0D, 0.0D, 0.19D);
+            ps.translate(0.0D, 0.0D, 0.17D);
             double dx = Mth.lerp(pt, p.xCloakO, p.xCloak) - Mth.lerp(pt, p.xo, p.getX());
             double dy = Mth.lerp(pt, p.yCloakO, p.yCloak) - Mth.lerp(pt, p.yo, p.getY());
             double dz = Mth.lerp(pt, p.zCloakO, p.zCloak) - Mth.lerp(pt, p.zo, p.getZ());
@@ -202,7 +307,7 @@ public final class CosmeticRender {
             if (p.isCrouching()) lift += 25.0F;
             // La inclinación total es la de siempre, pero solo el 35 % la gira el cuerpo entero: el resto lo doblan las tiras de tela.
             float tilt = swing / 2.0F + lift;
-            ps.mulPose(Axis.XP.rotationDegrees(Math.max(12.0F, 6.0F + tilt * 0.35F) + (p.isCrouching() ? 14.0F : 0.0F)));
+            ps.mulPose(Axis.XP.rotationDegrees(Math.max(9.0F, 6.0F + tilt * 0.35F) + (p.isCrouching() ? 12.0F : 0.0F)));
             ps.mulPose(Axis.ZP.rotationDegrees(sway / 4.0F));
             ps.mulPose(Axis.YP.rotationDegrees(180.0F - sway / 2.0F));
             if (p.isCrouching()) ps.translate(0.0D, 0.115D, 0.0875D); // el modelo baja y se adelanta al agacharse
@@ -213,7 +318,7 @@ public final class CosmeticRender {
             VertexConsumer vc = buf.getBuffer(RenderType.entityCutoutNoCull(item.texture));
             sink.begin(vc, ps.last(), light(item, light));
             mesh.emit(sink, frame, frames, 0.0625F, (float) Math.toRadians(tilt * 0.65F), CapeWave.ampFor(swing), age,
-                (float) Math.toRadians(sway / 4.0F));
+                (float) Math.toRadians(sway / 4.0F) + Mth.clamp((p.yBodyRot - p.yBodyRotO) * 0.012F, -0.3F, 0.3F));
             sink.vc = null;
             ps.popPose();
         }
@@ -245,7 +350,7 @@ public final class CosmeticRender {
         private final MembraneWing membrane = new MembraneWing();
         private final VertexSink sink = new VertexSink();
         /** Estado por jugador: la fase del aleteo nunca se detiene y la mezcla suelo/aire es gradual. */
-        private static final class State { float air, phase; long last; }
+        private static final class State { float air, phase, spd, vy; long last; }
         private final Map<Integer, State> states = new HashMap<>();
 
         public WingsLayer(RenderLayerParent<AbstractClientPlayer, PlayerModel<AbstractClientPlayer>> parent, EntityModelSet set) {
@@ -271,19 +376,23 @@ public final class CosmeticRender {
             float dt = Math.min(0.1F, (now - st.last) / 1.0e9F) * 20F; // ticks
             st.last = now;
             st.air += ((airNow ? 1F : 0F) - st.air) * Math.min(1F, dt * 0.25F);
-            st.phase += dt * (0.35F + st.air * 0.65F);
+            float mvx = (float) (p.getX() - p.xo), mvz = (float) (p.getZ() - p.zo);
+            st.spd += (Math.min(1F, Mth.sqrt(mvx * mvx + mvz * mvz) * 4F) - st.spd) * Math.min(1F, dt * 0.2F);
+            st.vy += (Mth.clamp((float) (p.getY() - p.yo) * 2.5F, -1F, 1F) - st.vy) * Math.min(1F, dt * 0.3F);
+            st.phase += dt * (0.35F + st.air * 0.65F + st.spd * 0.25F + Math.abs(st.vy) * 0.5F * st.air);
             float a = st.air;
-            float open = (0.85F + Mth.sin(st.phase * 0.2F) * 0.05F) * (1F - a) + (0.50F + Mth.sin(st.phase * 0.55F) * 0.32F) * a;
+            float open = (0.85F + Mth.sin(st.phase * 0.2F) * 0.07F + Mth.sin(st.phase * 0.47F) * 0.025F - st.spd * 0.22F) * (1F - a)
+                + (0.50F + Mth.sin(st.phase * 0.55F) * 0.32F - st.vy * 0.18F) * a;
             // Con capa: las alas nacen a los lados de la capa (outset) y se abren más hacia los lados que hacia atrás, así no la tapan.
             boolean cape = Cosmetics.of(p, Cosmetics.Type.CAPE) != null;
             if (cape) open *= 0.80F;
             open *= item.openMul; // cada cosmético puede abrir más o menos (por defecto 1)
             mesh.outset = cape ? 1.2F : 0F; // casi pegadas a la columna: nacen detrás de la capa, no separadas
-            mesh.zoff = cape ? 2.6F : 0F;
+            mesh.zoff = cape ? 1.8F : 0F;
             membrane.outset = mesh.outset;
             membrane.zoff = mesh.zoff;
             if (p.isCrouching()) open = (cape ? 0.9F : 1.15F) * item.openMul;
-            float flap = 0.025F + 0.075F * a; // siempre ondulan un poco; más en el aire
+            float flap = 0.025F + 0.075F * a + 0.04F * st.spd; // siempre ondulan un poco; más en el aire
 
             ps.pushPose();
             getParentModel().body.translateAndRotate(ps);

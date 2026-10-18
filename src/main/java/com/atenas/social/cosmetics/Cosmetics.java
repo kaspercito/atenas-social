@@ -124,6 +124,16 @@ public final class Cosmetics {
         addAnim(Type.CAPE, "llamas", "Llamas", 0xFFFF7A1A, true);
         addAnim(Type.CAPE, "matrix", "Matrix", 0xFF1BFF5A, true);
         addAnim(Type.CAPE, "pulso", "Pulso Synthwave", 0xFFFF2DA6, true);
+        addAnim(Type.CAPE, "rey", "Corona Real", 0xFFF5C542, true);
+        addAnim(Type.CAPE, "rayo", "Tormenta El\u00e9ctrica", 0xFFFFE23D, true);
+        addAnim(Type.CAPE, "calavera", "Calavera Infernal", 0xFFE8503A, true);
+        addAnim(Type.CAPE, "espadas", "Escudo de Guerra", 0xFF2457C5, true);
+        addAnim(Type.CAPE, "luna", "Luna M\u00e1gica", 0xFFF4F1DE, true);
+        addAnim(Type.CAPE, "corazon", "Coraz\u00f3n Latiendo", 0xFFFF4F8B, true);
+        addAnim(Type.CAPE, "diamante", "Diamante Radiante", 0xFF5FD8FF, true);
+        addAnim(Type.CAPE, "brujula", "Br\u00fajula M\u00edstica", 0xFFD4AF37, true);
+        addAnim(Type.CAPE, "sol", "Sol Naciente", 0xFFFFB400, true);
+        addAnim(Type.CAPE, "trebol", "Tr\u00e9bol Encantado", 0xFF2ECC71, true);
         addAnim(Type.CAPE, "arcoiris", "Arco\u00edris", 0xFF9B7BFF, true);
         addAnim(Type.CAPE, "mareas", "Mareas", 0xFF2E6FC4, true);
         addAnim(Type.CAPE, "eclipse", "Eclipse Solar", 0xFFFFB84D, true);

@@ -21,7 +21,7 @@ public final class MembraneWing {
     static final float[] ANG = {0.70f, 0.30f, -0.12f, -0.55f};
     static final float[] LEN = {17f, 24f, 24f, 19f};
     static final float BX = 3f, BY = -14f;
-    static final int SUB = 4, RINGS = 2;
+    static final int SUB = 6, RINGS = 3;
     static final float SCALLOP_FINGER = 0.22f, SCALLOP_BODY = 0.12f;
     static final float BONE_HW = 0.8f;
 
