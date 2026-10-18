@@ -8,6 +8,8 @@ import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.network.chat.Style;
 import net.minecraft.resources.ResourceLocation;
 
+import java.util.Random;
+
 /** Paleta de Atenas (la misma del cliente y del launcher) y un botón futurista con el mismo diseño que el cliente 1.8.9. */
 public final class Ui {
     public static final int ACCENT = 0xFF8B5CF6, ACCENT_LIGHT = 0xFFA78BFA, MAGENTA = 0xFFC026D3, PINK = 0xFFEC4899, CYAN = 0xFF22D3EE;
@@ -20,6 +22,72 @@ public final class Ui {
     public static final ResourceLocation BADGE_FONT = new ResourceLocation("atenassocial", "badge");
 
     private Ui() {}
+
+    /** Mezcla dos colores ARGB (f = 0 → a, f = 1 → b). */
+    public static int mix(int a, int b, float f) {
+        f = Math.max(0f, Math.min(1f, f));
+        int out = 0;
+        for (int sh = 24; sh >= 0; sh -= 8) {
+            int ca = (a >>> sh) & 255, cb = (b >>> sh) & 255;
+            out |= ((int) (ca + (cb - ca) * f) & 255) << sh;
+        }
+        return out;
+    }
+
+    /** Barra horizontal con degradado de izquierda a derecha. */
+    public static void hbar(GuiGraphics g, int x, int y, int w, int h, int c1, int c2) {
+        for (int i = 0; i < w; i += 3) g.fill(x + i, y, Math.min(x + w, x + i + 3), y + h, mix(c1, c2, i / (float) Math.max(1, w)));
+    }
+
+    /** Ancho (en px de GUI, sin escala) que ocupa {@link #heading}. */
+    public static int headingWidth(Font f, String s) {
+        String up = s.toUpperCase(java.util.Locale.ROOT);
+        int w = 0;
+        for (int i = 0; i < up.length(); i++) w += f.width(ui(String.valueOf(up.charAt(i)))) + 1;
+        return w;
+    }
+
+    /** Fondo noche con rejilla de neón en perspectiva, estrellas y línea de escaneo (el mismo del menú principal). */
+    public static final class Backdrop {
+        private static final int STARS = 110;
+        private final float[] sx = new float[STARS], sy = new float[STARS], sv = new float[STARS], ss = new float[STARS];
+
+        public Backdrop() {
+            Random r = new Random(1234L);
+            for (int i = 0; i < STARS; i++) { sx[i] = r.nextFloat(); sy[i] = r.nextFloat(); sv[i] = 0.2f + r.nextFloat() * 0.8f; ss[i] = r.nextFloat(); }
+        }
+
+        public void render(GuiGraphics g, int width, int height) {
+            long t = System.currentTimeMillis();
+            g.fillGradient(0, 0, width, height, 0xFF080A14, 0xFF171C3C);
+            int hz = height - 90;
+            g.fillGradient(0, hz - 40, width, hz, 0x008B5CF6, 0x268B5CF6);
+            g.fill(0, hz, width, height, 0xFF070913);
+            g.fill(0, hz, width, hz + 1, 0x808B5CF6);
+            for (int i = 1; i < 7; i++) {
+                float k = (float) Math.pow((i + (t % 2000) / 2000f) / 7f, 2.0);
+                int yy = hz + (int) (k * (height - hz));
+                g.fill(0, yy, width, yy + 1, (((int) (60 * k) + 14) << 24) | 0x8B5CF6);
+            }
+            for (int i = -10; i <= 10; i++) {
+                int bx = width / 2 + i * (width / 14), ex = width / 2 + i * (width / 3), steps = 12;
+                for (int s = 0; s < steps; s++) {
+                    float a0 = s / (float) steps;
+                    int px = bx + (int) ((ex - bx) * a0), py = hz + (int) ((height - hz) * a0);
+                    g.fill(px, py, px + 1, py + (height - hz) / steps + 1, (((int) (10 + 40 * a0)) << 24) | 0x8B5CF6);
+                }
+            }
+            for (int i = 0; i < STARS; i++) {
+                float yy = (sy[i] * hz + t * sv[i] * 0.003f) % hz;
+                int a = (int) (50 + 110 * (0.5 + 0.5 * Math.sin(t * 0.002 + i)));
+                int size = ss[i] > 0.8f ? 2 : 1;
+                int px = (int) (sx[i] * width);
+                g.fill(px, (int) yy, px + size, (int) yy + size, (a << 24) | 0xFFFFFF);
+            }
+            int scan = (int) ((t / 14) % (height + 80)) - 40;
+            g.fillGradient(0, scan, width, scan + 14, 0x008B5CF6, 0x128B5CF6);
+        }
+    }
 
     public static MutableComponent ui(String s) { return Component.literal(s).withStyle(Style.EMPTY.withFont(UI_FONT)); }
 

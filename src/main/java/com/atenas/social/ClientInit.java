@@ -19,6 +19,7 @@ import net.minecraftforge.client.event.RenderGuiEvent;
 import net.minecraftforge.client.event.ScreenEvent;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.TickEvent;
+import net.minecraftforge.eventbus.api.EventPriority;
 import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
@@ -53,12 +54,25 @@ public final class ClientInit {
         if (!(mc.screen instanceof SocialScreen)) mc.setScreen(new SocialScreen(mc.screen));
     }
 
-    /** Menú principal de Atenas en lugar del de Minecraft; y la lista de Multijugador con el servidor del pack arriba. */
-    @SubscribeEvent
+    /**
+     * Menú principal de Atenas en lugar del de Minecraft; y la lista de Multijugador con el servidor del pack arriba.
+     * Se reemplaza CUALQUIER TitleScreen (también las versiones derivadas que traen otros mods del pack) y se corre al final de la
+     * cola de eventos para que ningún otro mod lo vuelva a cambiar después.
+     */
+    @SubscribeEvent(priority = EventPriority.LOWEST)
     public void onOpening(ScreenEvent.Opening e) {
         Screen s = e.getNewScreen();
-        if (s != null && s.getClass() == TitleScreen.class) e.setNewScreen(new AtenasTitleScreen());
+        if (s instanceof TitleScreen) e.setNewScreen(new AtenasTitleScreen());
         else if (s instanceof JoinMultiplayerScreen) FeaturedServer.ensure();
+    }
+
+    /** Red de seguridad: si otro mod logró abrir su TitleScreen igual, se cambia por el de Atenas en cuanto termina de iniciarse. */
+    @SubscribeEvent
+    public void onTitleInit(ScreenEvent.Init.Post e) {
+        final Screen sc = e.getScreen();
+        if (!(sc instanceof TitleScreen)) return;
+        final Minecraft mc = Minecraft.getInstance();
+        mc.execute(() -> { if (mc.screen == sc) mc.setScreen(new AtenasTitleScreen()); });
     }
 
     /** Shift+Tab o la tecla configurada, con el juego en marcha. */
@@ -102,6 +116,7 @@ public final class ClientInit {
         if (mc.getUser() == null) return;
         SocialClient.nameSupplier = () -> mc.getUser().getName();
         ticks++;
+        WindowBrand.tick(mc, ticks);
         if (ticks % 20 == 0) { CosmeticSync.tick(mc); CatalogSync.tick(mc); }
         if (ticks % 10 == 0) Badge.updateTab(mc);
         if (ticks % 10 != 0) return; // cada medio segundo

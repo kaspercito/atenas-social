@@ -16,24 +16,20 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Mth;
 import net.minecraftforge.client.gui.ModListScreen;
 
-import java.util.Random;
-
 /**
  * Menú principal de Atenas, con el mismo diseño que el del cliente 1.8.9: fondo noche con rejilla de neón en perspectiva, estrellas,
  * línea de escaneo, logo con pulso y botones futuristas. Mantiene el acceso directo al servidor del pack.
  */
 public class AtenasTitleScreen extends Screen {
     private static final ResourceLocation LOGO = new ResourceLocation("atenassocial", "textures/gui/logo.png");
-    private static final int STARS = 110, BW = 230;
+    private static final int BW = 230;
 
-    private final float[] sx = new float[STARS], sy = new float[STARS], sv = new float[STARS], ss = new float[STARS];
+    private final Ui.Backdrop backdrop = new Ui.Backdrop();
     private int logoSize, logoY, titleY;
     private boolean showLogo;
 
     public AtenasTitleScreen() {
         super(Component.literal("Atenas"));
-        Random r = new Random(1234L);
-        for (int i = 0; i < STARS; i++) { sx[i] = r.nextFloat(); sy[i] = r.nextFloat(); sv[i] = 0.2f + r.nextFloat() * 0.8f; ss[i] = r.nextFloat(); }
     }
 
     @Override public boolean shouldCloseOnEsc() { return false; }
@@ -83,35 +79,7 @@ public class AtenasTitleScreen extends Screen {
     @Override
     public void render(GuiGraphics g, int mx, int my, float pt) {
         long t = System.currentTimeMillis();
-        g.fillGradient(0, 0, width, height, 0xFF080A14, 0xFF171C3C);
-
-        // resplandor del horizonte y rejilla en perspectiva
-        int hz = height - 90;
-        g.fillGradient(0, hz - 40, width, hz, 0x008B5CF6, 0x268B5CF6);
-        g.fill(0, hz, width, height, 0xFF070913);
-        g.fill(0, hz, width, hz + 1, 0x808B5CF6);
-        for (int i = 1; i < 7; i++) {
-            float k = (float) Math.pow((i + (t % 2000) / 2000f) / 7f, 2.0);
-            int yy = hz + (int) (k * (height - hz));
-            g.fill(0, yy, width, yy + 1, (((int) (60 * k) + 14) << 24) | 0x8B5CF6);
-        }
-        for (int i = -10; i <= 10; i++) {
-            int bx = width / 2 + i * (width / 14), ex = width / 2 + i * (width / 3), steps = 12;
-            for (int s = 0; s < steps; s++) {
-                float a0 = s / (float) steps;
-                int px = bx + (int) ((ex - bx) * a0), py = hz + (int) ((height - hz) * a0);
-                g.fill(px, py, px + 1, py + (height - hz) / steps + 1, (((int) (10 + 40 * a0)) << 24) | 0x8B5CF6);
-            }
-        }
-        for (int i = 0; i < STARS; i++) {
-            float yy = (sy[i] * hz + t * sv[i] * 0.003f) % hz;
-            int a = (int) (50 + 110 * (0.5 + 0.5 * Math.sin(t * 0.002 + i)));
-            int size = ss[i] > 0.8f ? 2 : 1;
-            int px = (int) (sx[i] * width);
-            g.fill(px, (int) yy, px + size, (int) yy + size, (a << 24) | 0xFFFFFF);
-        }
-        int scan = (int) ((t / 14) % (height + 80)) - 40;
-        g.fillGradient(0, scan, width, scan + 14, 0x008B5CF6, 0x128B5CF6);
+        backdrop.render(g, width, height);
 
         // marca: logo con pulso, nombre y subtítulo
         if (showLogo) {

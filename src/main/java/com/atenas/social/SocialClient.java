@@ -69,7 +69,7 @@ public final class SocialClient {
     private static long failedAt;
     private static boolean failedHard; // true: Mojang rechazó la sesión (cuenta sin conexión); false: el servicio no pudo confirmarla
     private static final long RETRY_UNVERIFIED_MS = 5L * 60L * 1000L;
-    private static final long RETRY_SOFT_MS = 20L * 1000L;
+    private static final long RETRY_SOFT_MS = 90L * 1000L;
     /** Por que fallo la ultima verificacion (vacio si fue bien o aun no se intento). Tambien sale en latest.log con el prefijo [AtenasSocial]. */
     private static volatile String verifyError = "";
     public static String verifyError() { return verifyError; }
@@ -243,10 +243,10 @@ public final class SocialClient {
         if (!validName(name)) throw new IOException("Tu nick no es válido para el servicio de amigos.");
         HttpURLConnection c = (HttpURLConnection) new URL(url + route).openConnection();
         c.setConnectTimeout(6000);
-        c.setReadTimeout(8000);
+        c.setReadTimeout("/auth/verify".equals(route) ? 25000 : 8000); // el servicio puede tardar varios segundos preguntando a Mojang
         c.setRequestMethod("POST");
         c.setRequestProperty("Content-Type", "application/json");
-        c.setRequestProperty("User-Agent", "AtenasSocial/1.20.1");
+        c.setRequestProperty("User-Agent", "AtenasSocial/1.1.2");
         c.setRequestProperty("x-name", name);
         c.setRequestProperty("x-token", token);
         c.setDoOutput(true);

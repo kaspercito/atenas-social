@@ -18,3 +18,8 @@ Todo en un solo jar (solo cliente, el servidor no lo necesita):
 
 ## Capas y alas (regenerar texturas)
 `python3 tools/gen_wings.py` (Pillow + numpy) regenera las alas y 4 capas animadas (llamas, aurora, mareas, pulso) (12 fotogramas, tira vertical) y sus iconos. Para una capa animada nueva: PNG de 256x1536 (12 fotogramas de 256x128) en `capes/`, icono `cape_<id>.png` y una línea `addAnim(...)` en `Cosmetics.java`.
+
+## Cambios de interfaz (menú, ventana y amigos)
+- **Menú principal:** ahora reemplaza *cualquier* `TitleScreen` (también el que traen otros mods del pack) y se corre al final de la cola de eventos. Antes solo cambiaba la clase exacta de Minecraft, por eso el menú de libro seguía saliendo.
+- **Ventana:** nombre `Atenas | Minecraft 1.20.1` y logo de Atenas como icono (`WindowBrand.java`), igual que el cliente 1.8.9.
+- **Amigos y Cosméticos:** mismo fondo de neón que el menú, panel de cristal con esquinas cortadas, cabecera con estado, filas con avatar/estado/badges, pie con atajos y estado de verificación de la cuenta.

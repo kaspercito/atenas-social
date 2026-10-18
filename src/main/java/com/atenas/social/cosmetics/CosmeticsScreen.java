@@ -12,6 +12,7 @@ import java.util.List;
 
 /** Elegir capa, alas, sombrero y mascota. Te ves puesto en vivo: con un mundo abierto con tu jugador, y sin mundo con un maniqui que gira ({@link CosmeticPreview}). */
 public class CosmeticsScreen extends Screen {
+    private final Ui.Backdrop backdrop = new Ui.Backdrop();
     private static final int CW = 62, CH = 58, GAP = 6, PREVIEW_W = 118;
 
     private final Screen parent;
@@ -101,13 +102,17 @@ public class CosmeticsScreen extends Screen {
 
     @Override
     public void render(GuiGraphics g, int mx, int my, float pt) {
-        renderBackground(g);
-        g.fill(px, py, px + pw, py + ph, 0xF00E0C20);
-        g.fill(px, py, px + pw, py + 2, Ui.ACCENT);
-        g.drawString(font, "COSM\u00c9TICOS", px + 8, py + 8, Ui.TEXT, false);
+        if (minecraft.level != null) g.fillGradient(0, 0, width, height, 0xC0070914, 0xE00E0B22);
+        else backdrop.render(g, width, height);
+        for (int k = 3; k >= 1; k--) Ui.chamfer(g, px - k * 2, py - k * 2, pw + k * 4, ph + k * 4, 6 + k * 2, (0x16 / k << 24) | 0x8B5CF6);
+        Ui.chamfer(g, px, py, pw, ph, 6, 0xF4090818);
+        Ui.chamferBorder(g, px, py, pw, ph, 6, 0xFF3A3466);
+        Ui.hbar(g, px + 6, py, pw - 12, 2, Ui.ACCENT, Ui.PINK);
+        Ui.heading(g, font, "Cosm\u00e9ticos", px + 10, py + 8, Ui.TEXT, 1f, false);
+        int hw = Ui.headingWidth(font, "Cosm\u00e9ticos");
         boolean warn = !Cosmetics.notice.isEmpty() && System.currentTimeMillis() < Cosmetics.noticeUntil;
-        g.drawString(font, font.plainSubstrByWidth(warn ? Cosmetics.notice : "Los ven todos los que usan Atenas", pw - font.width("COSM\u00c9TICOS") - 24),
-            px + 8 + font.width("COSM\u00c9TICOS") + 8, py + 8, warn ? 0xFFFFB454 : Ui.MUTED, false);
+        g.drawString(font, font.plainSubstrByWidth(warn ? Cosmetics.notice : "Los ven todos los que usan Atenas", pw - hw - 30),
+            px + 10 + hw + 10, py + 8, warn ? 0xFFFFB454 : Ui.MUTED, false);
 
         // pesta\u00f1as resaltadas
         // (los botones ya se dibujan solos; subrayamos la activa)
