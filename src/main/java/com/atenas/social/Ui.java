@@ -210,7 +210,29 @@ public final class Ui {
             int ty = y + (h - 8) / 2;
             int col = active ? (hot ? 0xFFFFFFFF : TEXT) : DIM;
             heading(g, f, getMessage().getString(), x + 14 + (int) (glow * 3), ty, col, 1f, false);
-            if (sub != null) g.drawString(f, ui(sub), x + w - f.width(ui(sub)) - 12, ty, hot ? CYAN : MUTED, true);
+            if (sub == null) return;
+            // La fuente de Atenas no tiene el glifo de la estrella (salia un cuadrito): se dibuja con pixeles.
+            if (STAR_HINT.equals(sub)) star(g, x + w - 7 - 12, y + (h - 7) / 2, hot ? CYAN : 0xFFF5C542);
+            else g.drawString(f, ui(sub), x + w - f.width(ui(sub)) - 12, ty, hot ? CYAN : MUTED, true);
         }
+    }
+
+    /** Valor especial de sub: pide la estrella dibujada. */
+    public static final String STAR_HINT = "\u2605";
+    private static final String[] STAR = {
+        "...#...",
+        "...#...",
+        ".#####.",
+        "#######",
+        ".#####.",
+        ".##.##.",
+        ".#...#.",
+    };
+
+    /** Estrella de 7x7 pixeles (x, y = esquina superior izquierda). */
+    public static void star(GuiGraphics g, int x, int y, int color) {
+        for (int r = 0; r < STAR.length; r++)
+            for (int c = 0; c < STAR[r].length(); c++)
+                if (STAR[r].charAt(c) == '#') g.fill(x + c, y + r, x + c + 1, y + r + 1, color);
     }
 }

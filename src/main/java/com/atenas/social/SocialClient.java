@@ -104,8 +104,10 @@ public final class SocialClient {
     // ---------------------------------------------------------------- identidad compartida
     /** Carpeta de Atenas (la misma que usan el launcher y el cliente 1.8.9). */
     public static File root() {
-        String home = System.getenv("ATENAS_HOME");
-        return (home != null && !home.isEmpty()) ? new File(home) : new File(System.getProperty("user.home"), ".atenasclient");
+        // El launcher pasa -Datenas.home (igual que al cliente 1.8.9); ATENAS_HOME queda de respaldo. Asi las dos versiones comparten SIEMPRE la misma identidad.
+        String home = System.getProperty("atenas.home");
+        if (home == null || home.trim().isEmpty()) home = System.getenv("ATENAS_HOME");
+        return (home != null && !home.trim().isEmpty()) ? new File(home.trim()) : new File(System.getProperty("user.home"), ".atenasclient");
     }
 
     /** Direccion del servicio (sin barra final). */

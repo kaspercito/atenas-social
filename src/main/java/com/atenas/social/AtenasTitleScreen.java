@@ -124,11 +124,14 @@ public class AtenasTitleScreen extends Screen {
         Ui.border(g, x, y, w, h, 0xFF262A48);
         g.fill(x, y, x + 2, y + h, 0xFF6D4FC7);
         g.fill(x + 5, y + 3, x + 25, y + 23, 0xFF6D4FC7);
-        try {
-            ResourceLocation skin = minecraft.getSkinManager().getInsecureSkinLocation(minecraft.getUser().getGameProfile());
+        ResourceLocation skin = OwnSkin.get(minecraft);
+        Faces.Face face = skin == null ? Faces.get(who) : null; // mientras llega la skin real: la cabeza que usan los avisos
+        if (skin != null) {
             g.blit(skin, x + 6, y + 4, 18, 18, 8, 8, 8, 8, 64, 64);    // cara
             g.blit(skin, x + 6, y + 4, 18, 18, 40, 8, 8, 8, 64, 64);   // capa del sombrero
-        } catch (Throwable t) {
+        } else if (face != null) {
+            g.blit(face.tex, x + 6, y + 4, 18, 18, 0, 0, face.w, face.h, face.w, face.h);
+        } else {
             g.fill(x + 6, y + 4, x + 24, y + 22, Ui.ACCENT);
             g.drawString(font, Ui.ui(who.isEmpty() ? "?" : who.substring(0, 1).toUpperCase()), x + 13, y + 9, Ui.NIGHT, false);
         }

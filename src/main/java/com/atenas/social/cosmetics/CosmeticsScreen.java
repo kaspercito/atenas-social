@@ -111,7 +111,9 @@ public class CosmeticsScreen extends Screen {
         Ui.heading(g, font, "Cosm\u00e9ticos", px + 10, py + 8, Ui.TEXT, 1f, false);
         int hw = Ui.headingWidth(font, "Cosm\u00e9ticos");
         boolean warn = !Cosmetics.notice.isEmpty() && System.currentTimeMillis() < Cosmetics.noticeUntil;
-        g.drawString(font, font.plainSubstrByWidth(warn ? Cosmetics.notice : "Los ven todos los que usan Atenas", pw - hw - 30),
+        String syncProblem = warn ? null : CosmeticSync.problem(); // la sincronizacion esta fallando: se dice por que
+        if (syncProblem != null) warn = true;
+        g.drawString(font, font.plainSubstrByWidth(syncProblem != null ? syncProblem : warn ? Cosmetics.notice : "Los ven todos los que usan Atenas", pw - hw - 30),
             px + 10 + hw + 10, py + 8, warn ? 0xFFFFB454 : Ui.MUTED, false);
 
         // pesta\u00f1as resaltadas

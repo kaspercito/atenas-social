@@ -44,13 +44,31 @@ public final class CosmeticSync {
     private CosmeticSync() {}
 
     private static volatile String lastErr = "";
+    /** Por que NO se esta sincronizando (null = todo bien). Lo muestra el menu de cosmeticos para que el fallo no quede oculto en el log. */
+    private static volatile String problem;
 
-    /** Antes los fallos de sincronizacion se tragaban en silencio. Ahora quedan en latest.log (una vez por mensaje distinto). */
+    public static String problem() { return problem; }
+
+    private static void ok() { problem = null; }
+
+    /** Antes los fallos de sincronizacion se tragaban en silencio. Ahora se muestran en el menu y quedan en latest.log (una vez por mensaje distinto). */
     private static void logErr(String where, Exception e) {
-        String m = where + ": " + e.getMessage();
+        String msg = e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
+        String code = e instanceof SocialClient.ApiError ? ((SocialClient.ApiError) e).code : "";
+        if ("verify_required".equals(code) || "not_verified".equals(code)) {
+            msg = "Sin sincronizar: este nick es de una cuenta premium. Entra con tu cuenta de Microsoft.";
+        } else if ("not_found".equals(code)) {
+            msg = "Sin sincronizar: el servicio no tiene los cosm\u00e9ticos (hay que actualizar el Worker).";
+        } else if (msg.toLowerCase(Locale.ROOT).contains("sin conexi")) {
+            msg = "Sin sincronizar: sin conexi\u00f3n con el servicio.";
+        } else {
+            msg = "Sin sincronizar: " + msg;
+        }
+        problem = msg;
+        String m = where + ": " + msg;
         if (m.equals(lastErr)) return;
         lastErr = m;
-        System.err.println("[AtenasSocial] sync " + m);
+        System.err.println("[AtenasSocial] sync " + m + " (nick=" + SocialClient.myName() + ")");
     }
 
     public static void markDirty() { dirty = true; rev++; lastPush = 0; }
@@ -99,6 +117,7 @@ public final class CosmeticSync {
                     JsonObject res = SocialClient.post("/cosmetics/set", b);
                     if (sent == rev) dirty = false;
                     selfKnown = true;
+                    ok();
                     // el servicio no dejo guardar algo privado: se quita de tu seleccion y se avisa
                     final List<String[]> denied = new ArrayList<>();
                     if (res.has("denied") && res.get("denied").isJsonArray()) {
@@ -137,11 +156,12 @@ public final class CosmeticSync {
                     if (el != null && el.isJsonObject()) {
                         JsonObject v = el.getAsJsonObject();
                         selfKnown = true;
+                        ok();
                         mc.execute(() -> {
                             if (seen != rev || dirty) return; // elegiste algo mientras tanto: gana lo tuyo
                             for (Cosmetics.Type t : Cosmetics.Type.values()) Cosmetics.applyRemote(t, str(v, t.key()));
                         });
-                    } else if (seen == rev) { selfKnown = true; dirty = true; /* el servicio no te conoce: sube lo que tienes */ }
+                    } else if (seen == rev) { selfKnown = true; ok(); dirty = true; /* el servicio no te conoce: sube lo que tienes */ }
                 } catch (Exception e) {
                     logErr("bajar tus cosméticos", e);
                     lastSelf = System.currentTimeMillis() - 20000; // reintenta pronto
