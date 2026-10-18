@@ -245,7 +245,7 @@ public final class Cosmetics {
         String nm = it != null ? it.name : id;
         notice(com.atenas.social.SocialClient.verified()
             ? "No puedes llevar \"" + nm + "\": es privado."
-            : "No se pudo verificar tu cuenta con Mojang, por eso \"" + nm + "\" (privado) fue rechazado.");
+            : nm + " es privada: no se pudo verificar tu cuenta (ver latest.log)");
         save();
     }
 

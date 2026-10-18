@@ -38,8 +38,9 @@ final class CosmeticPreview {
     private static final MembraneWing MEMBRANE = new MembraneWing();
     private static final CosmeticRender.VertexSink SINK = new CosmeticRender.VertexSink();
 
-    private static ResourceLocation skin;
-    private static boolean slim;
+    private static volatile ResourceLocation skin;
+    private static boolean skinRequested;
+    private static volatile boolean slim;
 
     private CosmeticPreview() {}
 
@@ -49,10 +50,28 @@ final class CosmeticPreview {
             modelSlim = new PlayerModel<>(mc.getEntityModels().bakeLayer(ModelLayers.PLAYER_SLIM), true);
         }
         if (skin == null) {
-            // sin partida no hay datos del jugador en el servidor: se usa el aspecto por defecto de la cuenta (Steve / Alex)
+            // mientras llega tu skin real se usa el aspecto por defecto de la cuenta (Steve / Alex)
             UUID id = mc.getUser() != null && mc.getUser().getProfileId() != null ? mc.getUser().getProfileId() : UUID.randomUUID();
             skin = DefaultPlayerSkin.getDefaultSkin(id);
             slim = "slim".equals(DefaultPlayerSkin.getSkinModelName(id));
+        }
+        // En una partida: la skin del jugador tal cual.
+        if (mc.player != null) {
+            skin = mc.player.getSkinTextureLocation();
+            slim = "slim".equals(mc.player.getModelName());
+        } else if (!skinRequested && mc.getUser() != null) {
+            // En el menu no hay jugador: se pide tu skin real a Mojang (en segundo plano) con la misma ruta que usa el juego.
+            skinRequested = true;
+            try {
+                mc.getSkinManager().registerSkins(mc.getUser().getGameProfile(), (type, loc, tex) -> {
+                    if (type == com.mojang.authlib.minecraft.MinecraftProfileTexture.Type.SKIN) {
+                        skin = loc;
+                        slim = "slim".equals(tex.getMetadata("model"));
+                    }
+                }, false);
+            } catch (RuntimeException e) {
+                System.err.println("[AtenasSocial] skin: " + e);
+            }
         }
         if (hatRoot == null) hatRoot = mc.getEntityModels().bakeLayer(CosmeticRender.HATS);
     }

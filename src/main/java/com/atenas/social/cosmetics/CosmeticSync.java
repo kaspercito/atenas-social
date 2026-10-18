@@ -43,6 +43,16 @@ public final class CosmeticSync {
 
     private CosmeticSync() {}
 
+    private static volatile String lastErr = "";
+
+    /** Antes los fallos de sincronizacion se tragaban en silencio. Ahora quedan en latest.log (una vez por mensaje distinto). */
+    private static void logErr(String where, Exception e) {
+        String m = where + ": " + e.getMessage();
+        if (m.equals(lastErr)) return;
+        lastErr = m;
+        System.err.println("[AtenasSocial] sync " + m);
+    }
+
     public static void markDirty() { dirty = true; rev++; lastPush = 0; }
 
     /** Pide ya lo que tienes elegido en el servicio (se llama al abrir el menu: un cambio hecho en el cliente 1.8.9 aparece al instante). */
@@ -106,7 +116,7 @@ public final class CosmeticSync {
                         });
                     }
                 }
-                catch (Exception e) { lastPush = System.currentTimeMillis() + 11000; /* reintenta en ~15 s */ }
+                catch (Exception e) { logErr("subir tus cosméticos", e); lastPush = System.currentTimeMillis() + 11000; /* reintenta en ~15 s */ }
                 finally { PUSHING.set(false); }
             });
         }
@@ -132,7 +142,8 @@ public final class CosmeticSync {
                             for (Cosmetics.Type t : Cosmetics.Type.values()) Cosmetics.applyRemote(t, str(v, t.key()));
                         });
                     } else if (seen == rev) { selfKnown = true; dirty = true; /* el servicio no te conoce: sube lo que tienes */ }
-                } catch (Exception ignored) {
+                } catch (Exception e) {
+                    logErr("bajar tus cosméticos", e);
                     lastSelf = System.currentTimeMillis() - 20000; // reintenta pronto
                 } finally { SELF.set(false); }
             });
@@ -184,7 +195,8 @@ public final class CosmeticSync {
                     } else REMOTE.remove(n);
                 }
                 stamp++;
-            } catch (Exception ignored) {
+            } catch (Exception e) {
+                logErr("bajar los de otros jugadores", e);
                 lastFetch = 0; // vuelve a intentarlo en el pr\u00f3ximo ciclo
             } finally { FETCHING.set(false); }
         });
