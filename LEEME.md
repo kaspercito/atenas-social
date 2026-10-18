@@ -23,3 +23,8 @@ Todo en un solo jar (solo cliente, el servidor no lo necesita):
 - **Menú principal:** ahora reemplaza *cualquier* `TitleScreen` (también el que traen otros mods del pack) y se corre al final de la cola de eventos. Antes solo cambiaba la clase exacta de Minecraft, por eso el menú de libro seguía saliendo.
 - **Ventana:** nombre `Atenas | Minecraft 1.20.1` y logo de Atenas como icono (`WindowBrand.java`), igual que el cliente 1.8.9.
 - **Amigos y Cosméticos:** mismo fondo de neón que el menú, panel de cristal con esquinas cortadas, cabecera con estado, filas con avatar/estado/badges, pie con atajos y estado de verificación de la cuenta.
+
+## Pantalla de carga propia y ficha de cuenta (sin probar en el juego)
+- `AtenasLoading.java` envuelve el overlay de carga del arranque (Mojang/Forge) y lo tapa con la pantalla de Atenas (logo, barra, %). Si algo falla, devuelve el original. El launcher ya no abre una ventana de carga encima para este pack.
+- Menú principal: ficha de la cuenta abajo a la derecha con la cara del skin (o el Steve/Alex por defecto) y el estado.
+- La versión del jar sale del tag de git (`v1.2.3`); sin tag es `0.0.0-dev`.

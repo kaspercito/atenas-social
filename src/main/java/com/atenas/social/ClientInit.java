@@ -109,6 +109,12 @@ public final class ClientInit {
         }
     }
 
+    /** Cambia la pantalla de carga de Mojang/Forge del arranque por la de Atenas (ver AtenasLoading). Solo actua en el primer cuadro. */
+    @SubscribeEvent
+    public void onRenderTick(TickEvent.RenderTickEvent e) {
+        if (e.phase == TickEvent.Phase.START) AtenasLoading.tryInstall(Minecraft.getInstance());
+    }
+
     @SubscribeEvent
     public void onTick(TickEvent.ClientTickEvent e) {
         if (e.phase != TickEvent.Phase.END) return;

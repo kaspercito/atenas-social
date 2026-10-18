@@ -110,7 +110,29 @@ public class AtenasTitleScreen extends Screen {
         // pie: pack a la izquierda, usuario a la derecha
         PackInfo.drawIcon(g, 18, height - 20, PackInfo.kind());
         g.drawString(font, Ui.ui(PackInfo.packName()), 32, height - 19, Ui.MUTED, true);
+        drawAccountChip(g);
+    }
+    /** Ficha de la cuenta (abajo a la derecha): cara del skin (o el Steve/Alex por defecto de la cuenta), nick y estado. */
+    private void drawAccountChip(GuiGraphics g) {
         String who = minecraft.getUser().getName();
-        g.drawString(font, Ui.ui(who), width - font.width(Ui.ui(who)) - 18, height - 19, Ui.TEXT, true);
+        boolean online = SocialClient.snapshot() != null;
+        String state = online ? Lang.t("\u25cf en l\u00ednea", "\u25cf online") : Lang.t("\u25cb desconectado", "\u25cb offline");
+        int textW = Math.max(font.width(Ui.ui(who)), font.width(Ui.ui(state)));
+        int h = 26, w = 6 + 18 + 7 + textW + 10;
+        int x = width - 18 - w, y = height - 16 - h;
+        g.fill(x, y, x + w, y + h, 0xC00B0E1C);
+        Ui.border(g, x, y, w, h, 0xFF262A48);
+        g.fill(x, y, x + 2, y + h, 0xFF6D4FC7);
+        g.fill(x + 5, y + 3, x + 25, y + 23, 0xFF6D4FC7);
+        try {
+            ResourceLocation skin = minecraft.getSkinManager().getInsecureSkinLocation(minecraft.getUser().getGameProfile());
+            g.blit(skin, x + 6, y + 4, 18, 18, 8, 8, 8, 8, 64, 64);    // cara
+            g.blit(skin, x + 6, y + 4, 18, 18, 40, 8, 8, 8, 64, 64);   // capa del sombrero
+        } catch (Throwable t) {
+            g.fill(x + 6, y + 4, x + 24, y + 22, Ui.ACCENT);
+            g.drawString(font, Ui.ui(who.isEmpty() ? "?" : who.substring(0, 1).toUpperCase()), x + 13, y + 9, Ui.NIGHT, false);
+        }
+        g.drawString(font, Ui.ui(who), x + 31, y + 4, Ui.TEXT, true);
+        g.drawString(font, Ui.ui(state), x + 31, y + 14, online ? 0xFF34D399 : Ui.MUTED, true);
     }
 }
