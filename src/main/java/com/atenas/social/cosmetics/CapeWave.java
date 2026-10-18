@@ -26,10 +26,15 @@ public final class CapeWave {
         float k8 = 8f / SEGS; // la onda se pensó para 8 tiras: con mas filas se reparte para que la tela ondee igual
         rx[0] = 0f;
         rz[0] = 0f;
+        float cum = 0f;
         for (int i = 1; i < SEGS; i++) {
             float k = (float) i / (SEGS - 1); // 0 arriba, 1 en la punta
             float wave = (float) Math.sin(time * 0.30f - i * 0.85f * k8) * amp * k8 * (0.35f + 0.65f * k);
-            rx[i] = per + wave;
+            float r = per + wave;
+            // la tela nunca se dobla hacia el cuerpo: el giro acumulado se mantiene >= 0 (hacia atras)
+            if (cum + r < 0f) r = -cum;
+            cum += r;
+            rx[i] = r;
             rz[i] = side / (SEGS - 1) + (float) Math.sin(time * 0.21f - i * 0.6f * k8 + 1.3f) * amp * 0.25f * k8 * k;
         }
     }

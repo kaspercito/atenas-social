@@ -202,7 +202,7 @@ public final class CosmeticRender {
             if (p.isCrouching()) lift += 25.0F;
             // La inclinación total es la de siempre, pero solo el 35 % la gira el cuerpo entero: el resto lo doblan las tiras de tela.
             float tilt = swing / 2.0F + lift;
-            ps.mulPose(Axis.XP.rotationDegrees(Math.max(8.0F, 6.0F + tilt * 0.35F)));
+            ps.mulPose(Axis.XP.rotationDegrees(Math.max(10.0F, 6.0F + tilt * 0.35F) + (p.isCrouching() ? 12.0F : 0.0F)));
             ps.mulPose(Axis.ZP.rotationDegrees(sway / 4.0F));
             ps.mulPose(Axis.YP.rotationDegrees(180.0F - sway / 2.0F));
             if (p.isCrouching()) ps.translate(0.0D, 0.115D, 0.0875D); // el modelo baja y se adelanta al agacharse
@@ -279,7 +279,7 @@ public final class CosmeticRender {
             if (cape) open *= 0.80F;
             open *= item.openMul; // cada cosmético puede abrir más o menos (por defecto 1)
             mesh.outset = cape ? 1.2F : 0F; // casi pegadas a la columna: nacen detrás de la capa, no separadas
-            mesh.zoff = cape ? 2.0F : 0F;
+            mesh.zoff = cape ? 3.2F : 2.0F;
             membrane.outset = mesh.outset;
             membrane.zoff = mesh.zoff;
             if (p.isCrouching()) open = (cape ? 0.5F : 0.6F) * item.openMul;
