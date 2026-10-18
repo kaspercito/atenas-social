@@ -188,7 +188,7 @@ public final class CosmeticRender {
 
             ps.pushPose();
             // pegada a la espalda (la de Mojang va a 0.125); con alas puestas NO se aleja: las alas nacen detrás de la capa (WingMesh.zoff)
-            ps.translate(0.0D, 0.0D, 0.15D);
+            ps.translate(0.0D, 0.0D, 0.19D);
             double dx = Mth.lerp(pt, p.xCloakO, p.xCloak) - Mth.lerp(pt, p.xo, p.getX());
             double dy = Mth.lerp(pt, p.yCloakO, p.yCloak) - Mth.lerp(pt, p.yo, p.getY());
             double dz = Mth.lerp(pt, p.zCloakO, p.zCloak) - Mth.lerp(pt, p.zo, p.getZ());
@@ -202,7 +202,7 @@ public final class CosmeticRender {
             if (p.isCrouching()) lift += 25.0F;
             // La inclinación total es la de siempre, pero solo el 35 % la gira el cuerpo entero: el resto lo doblan las tiras de tela.
             float tilt = swing / 2.0F + lift;
-            ps.mulPose(Axis.XP.rotationDegrees(Math.max(10.0F, 6.0F + tilt * 0.35F) + (p.isCrouching() ? 12.0F : 0.0F)));
+            ps.mulPose(Axis.XP.rotationDegrees(Math.max(12.0F, 6.0F + tilt * 0.35F) + (p.isCrouching() ? 14.0F : 0.0F)));
             ps.mulPose(Axis.ZP.rotationDegrees(sway / 4.0F));
             ps.mulPose(Axis.YP.rotationDegrees(180.0F - sway / 2.0F));
             if (p.isCrouching()) ps.translate(0.0D, 0.115D, 0.0875D); // el modelo baja y se adelanta al agacharse
@@ -279,10 +279,10 @@ public final class CosmeticRender {
             if (cape) open *= 0.80F;
             open *= item.openMul; // cada cosmético puede abrir más o menos (por defecto 1)
             mesh.outset = cape ? 1.2F : 0F; // casi pegadas a la columna: nacen detrás de la capa, no separadas
-            mesh.zoff = cape ? 3.2F : 2.0F;
+            mesh.zoff = cape ? 2.6F : 0F;
             membrane.outset = mesh.outset;
             membrane.zoff = mesh.zoff;
-            if (p.isCrouching()) open = (cape ? 0.5F : 0.6F) * item.openMul;
+            if (p.isCrouching()) open = (cape ? 0.9F : 1.15F) * item.openMul;
             float flap = 0.025F + 0.075F * a; // siempre ondulan un poco; más en el aire
 
             ps.pushPose();
