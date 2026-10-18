@@ -45,6 +45,17 @@ public final class PetRender {
     // ------------------------------------------------------------------ definiciones
     public static void registerDefinitions(EntityRenderersEvent.RegisterLayerDefinitions e) {
         for (final PetSpec.Kind k : PetSpec.kinds()) e.registerLayerDefinition(layer(k.name), () -> definition(k));
+        e.registerLayerDefinition(layer("pad"), PetRender::padDefinition);
+    }
+
+    private static final ResourceLocation PAD_TEX = new ResourceLocation("textures/block/brown_wool.png");
+    private static ModelPart padRoot;
+
+    /** Hombrera: una almohadilla de lana marron donde se posa la mascota (se dibuja solo cuando va en el hombro). */
+    private static LayerDefinition padDefinition() {
+        MeshDefinition m = new MeshDefinition();
+        m.getRoot().addOrReplaceChild("box", CubeListBuilder.create().texOffs(0, 0).addBox(-3f, 0f, -3f, 6f, 2f, 6f), PartPose.ZERO);
+        return LayerDefinition.create(m, 32, 16);
     }
 
     private static LayerDefinition definition(PetSpec.Kind k) {
@@ -94,7 +105,7 @@ public final class PetRender {
     private static final class Pet {
         final PetBrain brain;
         Cosmetics.Item item;
-        boolean seen;
+        boolean seen, mine;
         String kind = "";
         Pet(long seed) { brain = new PetBrain(seed); }
     }
@@ -214,6 +225,7 @@ public final class PetRender {
             if (pet == null) { pet = new Pet(name.hashCode()); pets.put(name, pet); }
             if (!k.name.equals(pet.kind)) { pet.kind = k.name; pet.brain.configure(k.flier, k.avoidWater, k.hop); }
             pet.seen = true;
+            pet.mine = p == mc.player;
             pet.item = item;
             fill(owner, p);
             pet.brain.tick(owner, GROUND);
@@ -238,6 +250,11 @@ public final class PetRender {
             if (k == null) continue;
             PetBrain b = pet.brain;
             double x = b.ix(pt), y = b.iy(pt), z = b.iz(pt);
+            // pegada a la camara (la tuya en primera persona, con la mascota en tu hombro) tapa la pantalla: no se dibuja
+            double cdx = x - cam.x, cdy = y + 0.2 - cam.y, cdz = z - cam.z;
+            // la tuya en primera persona se oculta si pasa cerca de la camara (estorba al girar y caminar); las demas, solo si casi la tocan
+            double cut = pet.mine && mc.options.getCameraType().isFirstPerson() ? 1.6 : 0.9;
+            if (cdx * cdx + cdy * cdy + cdz * cdz < cut * cut) continue;
             int light = LevelRenderer.getLightColor(mc.level, BlockPos.containing(x, y + 0.5, z));
             Model model = modelFor(k);
             ResourceLocation tex = pet.item.texture;
@@ -256,6 +273,17 @@ public final class PetRender {
                 ps.mulPose(Axis.ZP.rotation(roll));
                 ps.mulPose(Axis.XP.rotation(-pitch));
                 ps.translate(0.0, -cy, 0.0);
+            }
+            float perch = b.iperch(pt);
+            if (perch > 0.5f) {   // hombrera bajo las patas
+                float padS = Math.min(sc * 1.6f, 0.9f) * Math.min(1f, (perch - 0.5f) * 2f);
+                if (padRoot == null) padRoot = Minecraft.getInstance().getEntityModels().bakeLayer(layer("pad"));
+                RenderType padType = RenderType.entityCutoutNoCull(PAD_TEX);
+                used.add(padType);
+                ps.pushPose();
+                ps.scale(-padS, -padS, padS);
+                padRoot.render(ps, buf.getBuffer(padType), light, OverlayTexture.NO_OVERLAY);
+                ps.popPose();
             }
             ps.scale(-sc, -sc, sc);
             ps.translate(0f, -1.501f, 0f);

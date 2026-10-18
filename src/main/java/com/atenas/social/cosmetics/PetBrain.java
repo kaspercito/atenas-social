@@ -165,7 +165,7 @@ public final class PetBrain {
             ax += (lx - ax) * fb; ay += (lyy - ay) * fb; az += (lz - az) * fb;
             nx += (ux - nx) * fb; ny += (uy - ny) * fb; nz += (uz - nz) * fb;
         }
-        double h = o.sneaking && fb < 0.5f ? 1.30 : 1.42;
+        double h = o.sneaking && fb < 0.5f ? 1.35 : 1.47;   // la mascota pisa su hombrera (ver PetRender): 1.47 = parte de arriba de la hombrera
         double fwd = (o.sneaking && fb < 0.5f) ? 0.12 : 0.0;
         double side = 0.30;
         double nn = 0.02 + 0.12 * fb;
@@ -277,12 +277,15 @@ public final class PetBrain {
         double bob = Math.sin(age * 0.11) * 0.18;
         if (perchWant) { tx = shX; ty = shY + 0.25; tz = shZ; k = 0.25; }
         else if (flightLike) {
-            double lead = 4.0;
-            tx = o.x + ovx * lead + rx * 1.7 + fx * 0.8; ty = o.y + ovy * lead + 0.5 + bob; tz = o.z + ovz * lead + rz * 1.7 + fz * 0.8;
-            k = 0.35;
+            // Volando con el dueño: se queda a su lado, un poco atras (antes se adelantaba 4 veces su velocidad y se iba lejos)
+            double lx = Math.max(-1.2, Math.min(1.2, ovx * 1.0)), ly = Math.max(-1.0, Math.min(1.0, ovy * 1.0)), lz = Math.max(-1.2, Math.min(1.2, ovz * 1.0));
+            tx = o.x + lx + rx * 1.7 - fx * 0.6; ty = o.y + ly + 1.0 + bob; tz = o.z + lz + rz * 1.7 - fz * 0.6;
+            k = 0.5;
         } else {
             double orb = age * 0.035;
-            tx = o.x + rx * 1.15 + fx * (0.1 + Math.cos(orb) * 0.35) + ovx * 3.0; ty = o.y + 1.75 + bob + Math.sin(orb * 1.3) * 0.12; tz = o.z + rz * 1.15 + fz * (0.1 + Math.cos(orb) * 0.35) + ovz * 3.0;
+            // al costado y un poco ATRAS del dueño, bajo la altura de sus ojos: asi no se cruza en su pantalla al caminar o girar
+            double ahead = Math.max(-0.8, Math.min(0.8, ownerSpeed * 1.0));
+            tx = o.x + rx * 1.3 + fx * (-0.7 + Math.cos(orb) * 0.3) + fx * ahead; ty = o.y + 1.35 + bob + Math.sin(orb * 1.3) * 0.12; tz = o.z + rz * 1.3 + fz * (-0.7 + Math.cos(orb) * 0.3) + fz * ahead;
             if (o.inWater || o.swimming) ty += 0.8;
             k = ownerSpeed > 0.1 ? 0.22 : 0.10;
         }
@@ -290,6 +293,10 @@ public final class PetBrain {
         sx += (tx - sx) * k; sy += (ty - sy) * k; sz += (tz - sz) * k;
         double gy = g.ground(sx, sz, sy + 2.0);
         if (!Double.isNaN(gy) && sy < gy + 0.25) sy = gy + 0.25;
+        if (!perchWant) {   // correa: nunca se aleja demasiado del dueño (volando de cerca, en el suelo un poco mas holgada)
+            double cy = o.y + 1.0, ldx = sx - o.x, ldy = sy - cy, ldz = sz - o.z, ld = Math.sqrt(ldx * ldx + ldy * ldy + ldz * ldz), lmax = flightLike ? 3.5 : 7.0;
+            if (ld > lmax) { double f = lmax / ld; sx = o.x + ldx * f; sy = cy + ldy * f; sz = o.z + ldz * f; }
+        }
         svx = sx - ox; svy = sy - oy; svz = sz - oz;
         double hs = Math.sqrt(svx * svx + svz * svz);
         float want = syaw;
