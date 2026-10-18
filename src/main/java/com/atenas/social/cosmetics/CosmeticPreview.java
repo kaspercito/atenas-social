@@ -35,7 +35,7 @@ final class CosmeticPreview {
     private static ModelPart hatRoot;
     private static final CapeMesh CAPE = new CapeMesh();
     private static final WingMesh WINGS = new WingMesh();
-    private static final MembraneWing MEMBRANE = new MembraneWing();
+    private static final WingPlane PLANE = new WingPlane();
     private static final CosmeticRender.VertexSink SINK = new CosmeticRender.VertexSink();
 
     private static volatile ResourceLocation skin;
@@ -173,8 +173,8 @@ final class CosmeticPreview {
     private static void drawCape(PoseStack ps, MultiBufferSource buf, Cosmetics.Item item, float age, int light) {
         ps.pushPose();
         ps.translate(0.0, 0.0, 0.135);
-        float swing = 4f + (float) Math.sin(age * 0.06f) * 3f;
-        float sway = (float) Math.sin(age * 0.035f) * 6f;
+        float swing = 0f; // vista previa: la capa cuelga quieta
+        float sway = 0f;
         float tilt = swing / 2f;
         ps.mulPose(Axis.XP.rotationDegrees(6.0f + tilt * 0.35f));
         ps.mulPose(Axis.ZP.rotationDegrees(sway / 4.0f));
@@ -193,19 +193,21 @@ final class CosmeticPreview {
     /** Igual que CosmeticRender.WingsLayer en el suelo (respiro leve), con las dos mallas (plumas y membrana). */
     private static void drawWings(PoseStack ps, MultiBufferSource buf, PlayerModel<AbstractClientPlayer> m, Cosmetics.Item item, boolean cape, float age, int light) {
         float phase = age * 0.35f;
+        WingPlane.Style ws = WingPlane.styleOf(item.modelId());
         float open = 0.85f + (float) Math.sin(phase * 0.2f) * 0.05f;
+        if (item.membrane) open = (open + ws.idle * (float) Math.sin(phase * ws.idleFreq)) * ws.open;
         if (cape) open *= 0.80f;
         open *= item.openMul;
         float outset = cape ? 1.2f : 0f, zoff = cape ? 2.0f : 0f;
         WINGS.outset = outset; WINGS.zoff = zoff;
-        MEMBRANE.outset = outset; MEMBRANE.zoff = zoff;
-        float flap = 0.025f;
+        PLANE.outset = outset; PLANE.zoff = zoff;
+        float flap = 0.05f;
 
         ps.pushPose();
         m.body.translateAndRotate(ps);
         VertexConsumer vc = buf.getBuffer(RenderType.entityCutoutNoCull(item.texture));
         SINK.begin(vc, ps.last(), item.glow ? LightTexture.FULL_BRIGHT : light);
-        if (item.membrane) MEMBRANE.emit(SINK, open, phase, flap, true, 0.0625F);
+        if (item.membrane) PLANE.emit(SINK, open, phase * ws.speed, flap * ws.amp, true, WingPlane.MAX_N, 0.0625F);
         else WINGS.emit(SINK, open, phase, flap, WingMesh.MAX_SEGS, true, 0.0625F);
         SINK.vc = null;
         ps.popPose();

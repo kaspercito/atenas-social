@@ -47,5 +47,5 @@ public final class CapeWave {
     }
 
     /** Fuerza de la onda segun lo fuerte que se mueve la capa (swing = empuje hacia atras al correr, 0..150). */
-    public static float ampFor(float swing) { return 0.08f + 0.20f * Math.min(1f, swing / 60f); }
+    public static float ampFor(float swing) { return 0.004f + 0.26f * Math.min(1f, swing / 60f); }
 }

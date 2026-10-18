@@ -1,165 +1,391 @@
 package com.atenas.social.cosmetics;
 
 /**
- * Cerebro de una mascota cosmética. NO usa nada de Minecraft: recibe la posición del dueño y un "suelo" (interfaz Ground)
- * y calcula dónde está la mascota y qué animación hace. Se ejecuta una vez por tick (20 veces por segundo) y el dibujo
- * interpola entre el estado anterior y el actual.
+ * Cerebro de una mascota cosmetica. NO usa nada de Minecraft: recibe el estado del dueño ({@link Owner}) y un "suelo" ({@link Ground})
+ * y calcula donde esta la mascota y que animacion hace. Se ejecuta una vez por tick (20 por segundo); el dibujo interpola.
  *
- * Comportamiento: sigue al dueño a un paso tranquilo (corre si se queda lejos), se sienta si el dueño está quieto o agachado,
- * salta pequeños escalones, mira al dueño, mueve la cola y jadea al correr. Si se atasca o queda muy lejos, aparece junto al dueño.
- * Unidades: bloques y ticks. Yaw en grados con la convención de Minecraft (0 = sur/+z, 90 = oeste/-x).
+ * Mascotas de suelo: siguen al dueño (corren si se alejan, saltan escalones, se sientan si el dueño se queda quieto), NADAN junto a el
+ * en el agua (los gatos y conejos no: se suben a su hombro) y se SUBEN AL HOMBRO cuando el dueño vuela (elytras / creativo), cae de
+ * lejos, trepa, va montado o nada.
+ * Mascotas voladoras (aves, dragon): vuelan a su lado (planean con las elytras, aletean cerca del suelo) y se posan en el hombro
+ * cuando el dueño se queda quieto.
+ * Unidades: bloques y ticks. Yaw en grados con la convencion de Minecraft (0 = sur/+z, 90 = oeste/-x).
  */
 public final class PetBrain {
     /** El mundo, visto desde la mascota. */
     public interface Ground {
-        /** Altura de la superficie (y de la cara de arriba) del suelo más alto que esté a "fromY" o más abajo (hasta 8 bloques), o NaN si no hay. */
+        /** Altura de la superficie del suelo mas alto que este a "fromY" o mas abajo (hasta 8 bloques), o NaN si no hay. */
         double ground(double x, double z, double fromY);
+        /** Altura de la superficie del agua en esa columna cerca de "y" (si hay agua ahi), o NaN. */
+        default double water(double x, double z, double y) { return Double.NaN; }
     }
 
-    public static final int IDLE = 0, WALK = 1, RUN = 2, SIT = 3, AIR = 4;
+    /** Lo que la mascota sabe de su dueño, una vez por tick (lo llena PetRender). */
+    public static final class Owner {
+        public double x, y, z;
+        /** Giro de la cabeza, del cuerpo (grados) y cabeceo (grados, positivo = mirando hacia abajo). */
+        public float yaw, bodyYaw, pitch;
+        public boolean sneaking, sprinting, fallFlying, flying, swimming, inWater, riding, climbing, onGround;
+    }
 
-    // ---- estado actual y anterior (para interpolar al dibujar)
+    public static final int IDLE = 0, WALK = 1, RUN = 2, SIT = 3, AIR = 4, SWIM = 5, PERCH = 6, FLY = 7, GLIDE = 8;
+
+    // ---- rasgos del modelo (los pone PetRender con configure)
+    public boolean flier, avoidWater, hop;
+
+    // ---- estado actual y anterior (para interpolar al dibujar). x,y,z = donde se DIBUJA (ya mezclado con el hombro)
     public double x, y, z, px, py, pz;
-    public float yaw, pyaw;
+    public float yaw, pyaw, pitch, ppitch, roll, proll;
     public float walkPos, pwalkPos, swing, pswing;
-    public float sit, psit;         // 0 = de pie, 1 = sentado
-    public float mouth, pmouth;     // boca abierta (jadeo) 0..1
-    public float headYaw, pheadYaw, headPitch, pheadPitch; // relativos al cuerpo (grados)
-    public float tail, ptail;       // ángulo de meneo (radianes), ya calculado
-    public float earTwitch, pearTwitch;
+    public float sit, psit, mouth, pmouth, swim, pswim, perch, pperch, fly, pfly, flap, pflap, spread, pspread;
+    public float headYaw, pheadYaw, headPitch, pheadPitch, headTilt, pheadTilt;
+    public float tail, ptail, earTwitch, pearTwitch, flapAmp, pflapAmp;
+    public float wagSpeed = 0.5f, wagAmp = 0.4f;
     public int mode = IDLE;
     public int age;
     public boolean spawned;
 
-    private double vy;
-    private int idleTicks, stuck, twitchLeft, nextTwitch = 60;
-    private double lastOx, lastOz;
+    // ---- estado fisico (sin mezclar con el hombro)
+    private double sx, sy, sz, vy, svx, svy, svz;
+    private float syaw;
+    private float perchT;            // 0..1 lineal; perch = suavizado
+    private boolean perchWant;
+    private int flip, idleTicks, stuck, twitchLeft, nextTwitch = 60, stillTicks, airTicks, lookLeft, chirpLeft, nextChirp = 80;
+    private double lastOx, lastOy, lastOz, ovx, ovz, ovy;
+    private float fb;                // 0..1: cuerpo del dueño tumbado (elytras / nadando)
+    private float lookTarget, lookPitchTarget;
     private final java.util.Random rnd;
+    private final double[] tmp = new double[3];
 
     public PetBrain(long seed) { rnd = new java.util.Random(seed); }
 
-    public static final double FOLLOW_NEAR = 2.2, FOLLOW_FAR = 3.6, RUN_DIST = 6.0, TELEPORT_DIST = 16.0;
+    public void configure(boolean flier, boolean avoidWater, boolean hop) { this.flier = flier; this.avoidWater = avoidWater; this.hop = hop; }
 
+    public static final double FOLLOW_NEAR = 2.2, FOLLOW_FAR = 3.6, RUN_DIST = 6.0, TELEPORT_DIST = 28.0;
+
+    // ================================================================== compatibilidad con la version anterior
     public void teleport(double ox, double oy, double oz, float ownerYaw) {
         double r = Math.toRadians(ownerYaw);
-        // junto al dueño, un poco a su izquierda y atrás
-        x = ox + Math.cos(r) * 1.0 + Math.sin(r) * 0.8;
-        z = oz + Math.sin(r) * 1.0 - Math.cos(r) * 0.8;
-        y = oy;
-        px = x; py = y; pz = z; vy = 0; stuck = 0;
-        pyaw = yaw = ownerYaw;
+        sx = ox + Math.cos(r) * 1.0 + Math.sin(r) * 0.8;
+        sz = oz + Math.sin(r) * 1.0 - Math.cos(r) * 0.8;
+        sy = flier ? oy + 1.6 : oy;
+        x = sx; y = sy; z = sz; px = x; py = y; pz = z; vy = 0; stuck = 0; svx = svy = svz = 0;
+        pyaw = yaw = syaw = ownerYaw;
         spawned = true;
     }
 
+    /** Version simple (vista previa del menu): dueño quieto en el suelo. */
     public void tick(double ox, double oy, double oz, float ownerYaw, boolean ownerSneaking, Ground g) {
+        Owner o = new Owner();
+        o.x = ox; o.y = oy; o.z = oz; o.yaw = o.bodyYaw = ownerYaw; o.sneaking = ownerSneaking; o.onGround = true;
+        tick(o, g);
+    }
+
+    // ================================================================== tick
+    public void tick(Owner o, Ground g) {
         age++;
-        if (!spawned) { teleport(ox, oy, oz, ownerYaw); lastOx = ox; lastOz = oz; }
-        // guardar lo anterior
-        px = x; py = y; pz = z; pyaw = yaw; pwalkPos = walkPos; pswing = swing; psit = sit; pmouth = mouth;
-        pheadYaw = headYaw; pheadPitch = headPitch; ptail = tail; pearTwitch = earTwitch;
+        if (!spawned) { teleport(o.x, o.y, o.z, o.bodyYaw); lastOx = o.x; lastOy = o.y; lastOz = o.z; }
+        px = x; py = y; pz = z; pyaw = yaw; ppitch = pitch; proll = roll;
+        pwalkPos = walkPos; pswing = swing; psit = sit; pmouth = mouth; pswim = swim; pperch = perch; pfly = fly; pflap = flap; pspread = spread;
+        pheadYaw = headYaw; pheadPitch = headPitch; pheadTilt = headTilt; ptail = tail; pearTwitch = earTwitch; pflapAmp = flapAmp;
 
-        double dx = ox - x, dz = oz - z;
+        // ---- el dueño
+        ovx = o.x - lastOx; ovy = o.y - lastOy; ovz = o.z - lastOz;
+        lastOx = o.x; lastOy = o.y; lastOz = o.z;
+        double ownerSpeed = Math.sqrt(ovx * ovx + ovz * ovz);
+        boolean flightLike = o.fallFlying || (o.flying && !o.onGround);
+        stillTicks = (ownerSpeed < 0.03 && Math.abs(ovy) < 0.05 && !flightLike) ? stillTicks + 1 : 0;
+        airTicks = (!o.onGround && !o.inWater && !flightLike && !o.climbing) ? airTicks + 1 : 0;
+        fb += (((o.fallFlying || o.swimming) ? 1f : 0f) - fb) * 0.2f;
+
+        if (dist2(o.x, o.z, sx, sz) > TELEPORT_DIST * TELEPORT_DIST || Math.abs(o.y - sy) > (flier ? 40 : 9)) { teleport(o.x, o.y, o.z, o.bodyYaw); }
+
+        // ---- ¿subirse al hombro?
+        double dToOwner = Math.sqrt(dist2(o.x, o.z, sx, sz));
+        boolean want;
+        if (flier) {
+            want = stillTicks > 50 && !o.inWater && !o.swimming && !o.riding && dToOwner < 6;
+        } else {
+            double wsurf = g.water(sx, sz, sy + 0.3);
+            boolean petDeep = !Double.isNaN(wsurf) && wsurf - groundOr(g, sx, sz, sy, o.y) > 0.7;
+            want = flightLike || o.riding || o.climbing || airTicks > 20
+                    || (avoidWater && (o.inWater || petDeep))
+                    || (avoidWater && stillTicks > 160 && dToOwner < 3.2 && !o.sneaking);
+            // al aterrizar / salir del agua no baja hasta que el dueño se mueva con normalidad (evita parpadeos)
+        }
+        if (want != perchWant) { if (++flip > 5) { perchWant = want; flip = 0; } } else flip = 0;
+        perchT += perchWant ? 0.07f : -0.09f;
+        perchT = perchT < 0f ? 0f : (perchT > 1f ? 1f : perchT);
+        perch = perchT * perchT * (3f - 2f * perchT);
+
+        shoulder(o, tmp);
+        double shX = tmp[0], shY = tmp[1], shZ = tmp[2];
+
+        // ---- simulacion fisica
+        if (flier) simFlier(o, g, ownerSpeed, flightLike, shX, shY, shZ);
+        else simGround(o, g, ownerSpeed, flightLike);
+
+        // ---- mezcla con el hombro (salto en arco al subir / bajar)
+        double arc = Math.sin(Math.PI * perchT) * (flier ? 0.25 : 0.9);
+        if (perch > 0.001f) {
+            x = sx + (shX - sx) * perch; z = sz + (shZ - sz) * perch;
+            y = sy + (shY - sy) * perch + arc;
+        } else { x = sx; y = sy; z = sz; }
+        if (perch >= 0.999f && !flier) { sx = o.x + 0.8; sz = o.z; sy = o.y; vy = 0; landSpot(o, g); }
+
+        // ---- orientacion y gestos
+        float fbBody = o.bodyYaw;
+        yaw = syaw + wrap(fbBody - syaw) * perch;
+        float tiltOwner = 0f; // sobre su espalda la mascota va de pie, como en el mundo
+        float flyPitch = flier ? flyPitchOf() : 0f;
+        pitch = tiltOwner * perch + flyPitch * (1f - perch);
+        float targetRoll = flier ? clampf(-wrap(syaw - pyawSim) * 0.05f, -0.7f, 0.7f) * (1f - perch) : 0f;
+        roll += (targetRoll - roll) * 0.2f;
+        pyawSim = syaw;
+
+        animate(o, ownerSpeed, flightLike);
+    }
+
+    private float pyawSim;
+
+    private float flyPitchOf() {
+        double hs = Math.sqrt(svx * svx + svz * svz);
+        return (float) (-Math.atan2(svy, Math.max(hs, 0.12)) * 0.8);
+    }
+
+    // ------------------------------------------------------------------ hombro derecho del dueño (en el marco del mundo)
+    private void shoulder(Owner o, double[] out) {
+        double by = Math.toRadians(o.bodyYaw);
+        double rx = -Math.cos(by), rz = -Math.sin(by), fx = -Math.sin(by), fz = Math.cos(by);
+        double ax = 0, ay = 1, az = 0, nx = 0, ny = 1, nz = 0;
+        if (fb > 0.01f) {
+            double ly = Math.toRadians(o.yaw), lp = Math.toRadians(o.pitch);
+            double lx = -Math.sin(ly) * Math.cos(lp), lyy = -Math.sin(lp), lz = Math.cos(ly) * Math.cos(lp);
+            double ux = -Math.sin(ly) * Math.sin(lp), uy = Math.cos(lp), uz = Math.cos(ly) * Math.sin(lp);
+            ax += (lx - ax) * fb; ay += (lyy - ay) * fb; az += (lz - az) * fb;
+            nx += (ux - nx) * fb; ny += (uy - ny) * fb; nz += (uz - nz) * fb;
+        }
+        double h = o.sneaking && fb < 0.5f ? 1.30 : 1.42;
+        double fwd = (o.sneaking && fb < 0.5f) ? 0.12 : 0.0;
+        double side = 0.30;
+        double nn = 0.02 + 0.12 * fb;
+        out[0] = o.x + ax * h + rx * side + fx * fwd + nx * nn;
+        out[1] = o.y + ay * h + ny * nn;
+        out[2] = o.z + az * h + rz * side + fz * fwd + nz * nn;
+        if (o.riding) out[1] -= 0.45;
+    }
+
+    private void landSpot(Owner o, Ground g) {
+        double by = Math.toRadians(o.bodyYaw);
+        double lx = o.x + (-Math.cos(by)) * 0.9 + (-Math.sin(by)) * 0.3, lz = o.z + (-Math.sin(by)) * 0.9 + Math.cos(by) * 0.3;
+        double gy = g.ground(lx, lz, o.y + 1.2);
+        sx = lx; sz = lz; sy = Double.isNaN(gy) ? o.y : gy;
+    }
+
+    private double groundOr(Ground g, double gx, double gz, double fromY, double dflt) {
+        double v = g.ground(gx, gz, fromY + 1.2);
+        return Double.isNaN(v) ? dflt : v;
+    }
+
+    // ------------------------------------------------------------------ mascota de suelo
+    private void simGround(Owner o, Ground g, double ownerSpeed, boolean flightLike) {
+        double ox = o.x, oy = o.y, oz = o.z;
+        double dx = ox - sx, dz = oz - sz;
         double dist = Math.sqrt(dx * dx + dz * dz);
-        double ownerSpeed = Math.sqrt((ox - lastOx) * (ox - lastOx) + (oz - lastOz) * (oz - lastOz));
-        lastOx = ox; lastOz = oz;
+        if (perchT > 0.5f && perchWant) { /* ya va en el hombro: solo gestos */ mode = PERCH; stuck = 0; syaw = o.bodyYaw; return; }
 
-        if (dist > TELEPORT_DIST || Math.abs(oy - y) > 9 || stuck > 40) { teleport(ox, oy, oz, ownerYaw); dx = ox - x; dz = oz - z; dist = Math.sqrt(dx * dx + dz * dz); }
-
-        // ---- ¿hay que moverse?
-        boolean chasing = mode == WALK || mode == RUN;
+        boolean chasing = mode == WALK || mode == RUN || mode == SWIM;
         boolean wantMove = dist > (chasing ? FOLLOW_NEAR : FOLLOW_FAR);
         double speed = 0;
         if (wantMove) {
             speed = 0.10 + Math.max(0, dist - FOLLOW_NEAR) * 0.045;
             if (dist > RUN_DIST) speed += 0.05;
             if (speed > 0.34) speed = 0.34;
-            if (!chasing) speed *= 0.6; // arranque suave
+            if (!chasing) speed *= 0.6;
             idleTicks = 0;
         } else idleTicks++;
 
-        // ---- mover con colisión sencilla (escalón de 1 bloque, sin saltar al vacío)
+        double ws = g.water(sx, sz, sy + 0.3);
+        double gyHere = groundOr(g, sx, sz, sy, Math.min(sy, oy));
+        boolean deep = !Double.isNaN(ws) && ws - gyHere > 0.7;
+        if (deep) speed *= 0.75;
+
         boolean moved = false;
         if (speed > 0) {
-            double len = Math.max(dist, 1e-6), sx = dx / len * speed, sz = dz / len * speed;
-            double x0 = x, z0 = z;
-            if (!tryStep(x + sx, z + sz, g)) { if (!tryStep(x + sx, z, g)) tryStep(x, z + sz, g); }
-            // solo cuenta como avance si de verdad se movió (deslizarse un pelo por una pared no cuenta)
-            double got = Math.sqrt((x - x0) * (x - x0) + (z - z0) * (z - z0));
+            double len = Math.max(dist, 1e-6), mx = dx / len * speed, mz = dz / len * speed;
+            double x0 = sx, z0 = sz;
+            if (!tryStep(sx + mx, sz + mz, g, deep) && !tryStep(sx + mx, sz, g, deep)) tryStep(sx, sz + mz, g, deep);
+            double got = Math.sqrt((sx - x0) * (sx - x0) + (sz - z0) * (sz - z0));
             moved = got > speed * 0.4;
-            if (!moved) { stuck++; if (onGround()) vy = 0.42; } // saltar para librar el obstáculo
-            else stuck = Math.max(0, stuck - 2);
+            if (!moved) { stuck++; if (vy == 0 && !deep) vy = 0.42; } else stuck = Math.max(0, stuck - 2);
         } else stuck = Math.max(0, stuck - 1);
+        if (stuck > 40) { teleport(ox, oy, oz, o.bodyYaw); return; }
 
-        // ---- vertical: seguir el suelo, saltar escalones, caer con gravedad
-        double gy = g.ground(x, z, Math.max(oy, y) + 1.2);
-        if (Double.isNaN(gy)) gy = Math.min(y, oy);
-        if (y < gy) {
-            if (gy - y <= 1.05 && vy <= 0) { vy = gy - y > 0.55 ? 0.40 : 0; if (vy == 0) y = gy; }
-            else if (vy <= 0) vy = 0.42;
+        // vertical
+        double gy = g.ground(sx, sz, Math.max(oy, sy) + 1.2);
+        if (Double.isNaN(gy)) gy = Math.min(sy, oy);
+        boolean swimming = false;
+        double wsurf = g.water(sx, sz, sy + 0.3);
+        if (!Double.isNaN(wsurf) && wsurf - gy > 0.7) {
+            swimming = true;                                   // aguas hondas: flota (el cuerpo queda medio hundido)
+            double target = wsurf - 0.42;
+            sy += (target - sy) * 0.3; vy = 0;
+        } else {
+            if (sy < gy) {
+                if (gy - sy <= 1.05 && vy <= 0) { vy = gy - sy > 0.55 ? 0.40 : 0; if (vy == 0) sy = gy; }
+                else if (vy <= 0) vy = 0.42;
+            }
+            if (vy != 0 || sy > gy) {
+                sy += vy; vy -= 0.08; vy *= 0.98;
+                if (sy <= gy && vy <= 0) { sy = gy; vy = 0; }
+            }
         }
-        if (vy != 0 || y > gy) {
-            y += vy; vy -= 0.08; vy *= 0.98;
-            if (y <= gy && vy <= 0) { y = gy; vy = 0; }
-        }
-        boolean air = y > gy + 0.05;
+        boolean air = !swimming && sy > gy + 0.05;
 
-        // ---- orientación: hacia donde camina; quieto, mira al dueño despacio
-        float want = yaw;
-        if (moved) want = (float) Math.toDegrees(Math.atan2(-dx, dz));
-        else if (dist > 0.6) want = (float) Math.toDegrees(Math.atan2(-dx, dz));
-        float maxTurn = moved ? 26f : 6f;
-        yaw += clampf(wrap(want - yaw), -maxTurn, maxTurn);
+        float want = syaw;
+        if (moved || dist > 0.6) want = (float) Math.toDegrees(Math.atan2(-dx, dz));
+        syaw += clampf(wrap(want - syaw), moved ? -26f : -6f, moved ? 26f : 6f);
 
-        // ---- modo
         boolean ownerStill = ownerSpeed < 0.02;
-        if (air) mode = AIR;
+        if (swimming) mode = SWIM;
+        else if (air) mode = AIR;
         else if (moved) mode = speed > 0.21 ? RUN : WALK;
-        else if (ownerSneaking || (ownerStill && idleTicks > 100 && dist < 4.5)) mode = SIT;
+        else if (o.sneaking || (ownerStill && idleTicks > 100 && dist < 4.5)) mode = SIT;
         else mode = IDLE;
-        if (mode == SIT && !ownerStill && !ownerSneaking) mode = IDLE;
+        if (mode == SIT && !ownerStill && !o.sneaking) mode = IDLE;
+        walkSpeed = moved ? speed : 0;
+    }
 
-        // ---- animaciones
-        float targetSwing = mode == RUN ? 1f : mode == WALK ? 0.7f : 0f;
-        swing += (targetSwing - swing) * 0.3f;
-        walkPos += (float) (moved ? speed * 5.0 : 0) + (mode == RUN ? 0.25f : 0f);
-        sit += ((mode == SIT ? 1f : 0f) - sit) * 0.12f;
-        if (sit < 0.01f) sit = 0f;
-        mouth += ((mode == RUN ? 1f : mode == WALK ? 0.35f : 0f) - mouth) * 0.15f;
-        float lookYaw = clampf(wrap((float) Math.toDegrees(Math.atan2(-dx, dz)) - yaw), -55f, 55f);
-        headYaw += ((mode == IDLE || mode == SIT ? lookYaw : 0f) - headYaw) * 0.12f;
-        headPitch += ((mode == SIT ? -10f : mode == RUN ? 8f : 0f) - headPitch) * 0.1f;
-        float wagSpeed = mode == RUN ? 0.9f : (mode == IDLE || mode == SIT ? 0.55f : 0.35f);
-        float wagAmp = mode == RUN ? 0.35f : (dist < 3.5 ? 0.55f : 0.25f);
+    private double walkSpeed;
+
+    private boolean tryStep(double nx, double nz, Ground g, boolean deep) {
+        double gy = g.ground(nx, nz, sy + 1.1);
+        double ws = g.water(nx, nz, sy + 0.3);
+        if (!Double.isNaN(ws) && (Double.isNaN(gy) || ws - gy > 0.7)) { sx = nx; sz = nz; return true; }   // nadar
+        if (Double.isNaN(gy)) return false;
+        if (gy - sy > 1.05) return false;
+        if (sy - gy > 3.2 && !deep) return false;
+        sx = nx; sz = nz;
+        return true;
+    }
+
+    // ------------------------------------------------------------------ mascota voladora
+    private void simFlier(Owner o, Ground g, double ownerSpeed, boolean flightLike, double shX, double shY, double shZ) {
+        double by = Math.toRadians(o.bodyYaw);
+        double rx = -Math.cos(by), rz = -Math.sin(by), fx = -Math.sin(by), fz = Math.cos(by);
+        double tx, ty, tz, k;
+        double bob = Math.sin(age * 0.11) * 0.18;
+        if (perchWant) { tx = shX; ty = shY + 0.25; tz = shZ; k = 0.25; }
+        else if (flightLike) {
+            double lead = 4.0;
+            tx = o.x + ovx * lead + rx * 1.7 + fx * 0.8; ty = o.y + ovy * lead + 0.5 + bob; tz = o.z + ovz * lead + rz * 1.7 + fz * 0.8;
+            k = 0.35;
+        } else {
+            double orb = age * 0.035;
+            tx = o.x + rx * 1.15 + fx * (0.1 + Math.cos(orb) * 0.35) + ovx * 3.0; ty = o.y + 1.75 + bob + Math.sin(orb * 1.3) * 0.12; tz = o.z + rz * 1.15 + fz * (0.1 + Math.cos(orb) * 0.35) + ovz * 3.0;
+            if (o.inWater || o.swimming) ty += 0.8;
+            k = ownerSpeed > 0.1 ? 0.22 : 0.10;
+        }
+        double ox = sx, oy = sy, oz = sz;
+        sx += (tx - sx) * k; sy += (ty - sy) * k; sz += (tz - sz) * k;
+        double gy = g.ground(sx, sz, sy + 2.0);
+        if (!Double.isNaN(gy) && sy < gy + 0.25) sy = gy + 0.25;
+        svx = sx - ox; svy = sy - oy; svz = sz - oz;
+        double hs = Math.sqrt(svx * svx + svz * svz);
+        float want = syaw;
+        if (perchWant && perchT > 0.6f) want = o.bodyYaw;
+        else if (hs > 0.04) want = (float) Math.toDegrees(Math.atan2(-svx, svz));
+        else want = o.yaw;
+        syaw += clampf(wrap(want - syaw), -18f, 18f);
+        double speedAll = Math.sqrt(svx * svx + svy * svy + svz * svz);
+        boolean airborne = !(perchT > 0.5f && perchWant);
+        if (!airborne) mode = PERCH;
+        else if (flightLike || o.fallFlying) mode = GLIDE;
+        else mode = FLY;
+        walkSpeed = speedAll;
+    }
+
+    // ------------------------------------------------------------------ gestos
+    private void animate(Owner o, double ownerSpeed, boolean flightLike) {
+        boolean perched = perch > 0.5f;
+        if (flier) {
+            float flyT = perched ? 0f : 1f;
+            fly += (flyT - fly) * 0.15f;
+            spread += (((mode == GLIDE) ? 1f : (mode == FLY ? 0.85f : 0f)) - spread) * 0.2f;
+            float ampT = mode == GLIDE ? (0.12f + (float) Math.max(0, svy) * 1.2f) : (mode == FLY ? 1f : 0f);
+            flapAmp += (clampf(ampT, 0f, 1f) - flapAmp) * 0.15f;
+            flap += (mode == GLIDE ? 0.35f : 0.95f) + (float) walkSpeed * 0.8f;
+            swing = 0; walkPos = 0; sit = 0;
+        } else {
+            float targetSwing = mode == RUN ? 1f : mode == WALK ? 0.7f : mode == SWIM ? 0.9f : 0f;
+            swing += (targetSwing - swing) * 0.3f;
+            walkPos += (float) (walkSpeed * 5.0) + (mode == RUN ? 0.25f : 0f) + (mode == SWIM ? 0.5f : 0f);
+            float sitT = (mode == SIT) ? 1f : 0f;
+            sit += (sitT - sit) * 0.12f;
+            if (sit < 0.01f) sit = 0f;
+            swim += ((mode == SWIM ? 1f : 0f) - swim) * 0.15f;
+            if (swim < 0.01f) swim = 0f;
+        }
+        // boca: jadea al correr; las aves "pian" de vez en cuando
+        float mt = mode == RUN ? 1f : mode == WALK ? 0.35f : mode == SWIM ? 0.4f : 0f;
+        if (flier) {
+            if (chirpLeft > 0) { chirpLeft--; mt = 0.5f + 0.5f * (float) Math.sin(chirpLeft * 1.7); }
+            else if (--nextChirp <= 0) { chirpLeft = 10; nextChirp = 100 + rnd.nextInt(200); }
+        }
+        mouth += (mt - mouth) * 0.2f;
+
+        // mirada: al dueño; en reposo, a veces curiosea a los lados
+        double dx = o.x - sx, dz = o.z - sz;
+        float lookYaw = clampf(wrap((float) Math.toDegrees(Math.atan2(-dx, dz)) - syaw), -55f, 55f);
+        boolean calm = mode == IDLE || mode == SIT || mode == PERCH;
+        if (calm) {
+            if (--lookLeft <= 0) {
+                lookLeft = 40 + rnd.nextInt(90);
+                boolean away = rnd.nextInt(3) == 0;
+                lookTarget = away ? (rnd.nextFloat() - 0.5f) * 110f : lookYaw;
+                lookPitchTarget = away ? (rnd.nextFloat() - 0.5f) * 30f : 0f;
+            }
+        } else { lookTarget = 0f; lookPitchTarget = mode == RUN ? 8f : mode == SWIM ? -14f : 0f; lookLeft = 20; }
+        if (perched) lookTarget = clampf(lookTarget, -70f, 70f);
+        headYaw += (lookTarget - headYaw) * 0.10f;
+        headPitch += (((mode == SIT ? -10f : 0f) + lookPitchTarget) - headPitch) * 0.1f;
+        float tiltT = calm ? (float) Math.sin(age * 0.021) * 0.22f * (Math.abs(lookTarget) < 5f ? 1f : 0f) : 0f;
+        headTilt += (tiltT - headTilt) * 0.08f;
+
+        wagSpeed = mode == RUN ? 0.9f : (calm ? 0.55f : 0.35f);
+        wagAmp = mode == RUN ? 0.35f : (Math.sqrt(dx * dx + dz * dz) < 3.5 || perched ? 0.55f : 0.25f);
+        if (mode == SWIM) { wagSpeed = 0.5f; wagAmp = 0.15f; }
+        if (flier) { wagAmp = 0.12f; wagSpeed = 0.2f; }
         tail = (float) Math.sin(age * wagSpeed) * wagAmp;
         if (--nextTwitch <= 0) { twitchLeft = 8; nextTwitch = 50 + rnd.nextInt(120); }
         if (twitchLeft > 0) { twitchLeft--; earTwitch = (float) Math.sin(twitchLeft * 1.6) * 0.5f; } else earTwitch = 0f;
     }
 
-    private boolean onGround() { return vy == 0; }
-
-    private boolean tryStep(double nx, double nz, Ground g) {
-        double gy = g.ground(nx, nz, y + 1.1);
-        if (Double.isNaN(gy)) return false;
-        if (gy - y > 1.05) return false;      // pared
-        if (y - gy > 3.2) return false;       // precipicio
-        x = nx; z = nz;
-        return true;
-    }
-
+    private static double dist2(double ax, double az, double bx, double bz) { return (ax - bx) * (ax - bx) + (az - bz) * (az - bz); }
     private static float wrap(float a) { while (a > 180f) a -= 360f; while (a < -180f) a += 360f; return a; }
     private static float clampf(float v, float lo, float hi) { return v < lo ? lo : (v > hi ? hi : v); }
 
     // ---- valores interpolados para dibujar (pt = 0..1)
+    private static float li(float a, float b, float t) { return a + (b - a) * t; }
     public double ix(float pt) { return px + (x - px) * pt; }
     public double iy(float pt) { return py + (y - py) * pt; }
     public double iz(float pt) { return pz + (z - pz) * pt; }
     public float iyaw(float pt) { return pyaw + wrap(yaw - pyaw) * pt; }
-    public float iwalk(float pt) { return pwalkPos + (walkPos - pwalkPos) * pt; }
-    public float iswing(float pt) { return pswing + (swing - pswing) * pt; }
-    public float isit(float pt) { return psit + (sit - psit) * pt; }
-    public float imouth(float pt) { return pmouth + (mouth - pmouth) * pt; }
-    public float iheadYaw(float pt) { return pheadYaw + (headYaw - pheadYaw) * pt; }
-    public float iheadPitch(float pt) { return pheadPitch + (headPitch - pheadPitch) * pt; }
-    public float itail(float pt) { return ptail + (tail - ptail) * pt; }
-    public float iear(float pt) { return pearTwitch + (earTwitch - pearTwitch) * pt; }
+    public float ipitch(float pt) { return li(ppitch, pitch, pt); }
+    public float iroll(float pt) { return li(proll, roll, pt); }
+    public float iwalk(float pt) { return li(pwalkPos, walkPos, pt); }
+    public float iswing(float pt) { return li(pswing, swing, pt); }
+    public float isit(float pt) { return li(psit, sit, pt); }
+    public float imouth(float pt) { return li(pmouth, mouth, pt); }
+    public float iswim(float pt) { return li(pswim, swim, pt); }
+    public float iperch(float pt) { return li(pperch, perch, pt); }
+    public float ifly(float pt) { return li(pfly, fly, pt); }
+    public float iflap(float pt) { return li(pflap, flap, pt); }
+    public float ispread(float pt) { return li(pspread, spread, pt); }
+    public float iflapAmp(float pt) { return li(pflapAmp, flapAmp, pt); }
+    public float iheadYaw(float pt) { return li(pheadYaw, headYaw, pt); }
+    public float iheadPitch(float pt) { return li(pheadPitch, headPitch, pt); }
+    public float iheadTilt(float pt) { return li(pheadTilt, headTilt, pt); }
+    public float itail(float pt) { return li(ptail, tail, pt); }
+    public float iear(float pt) { return li(pearTwitch, earTwitch, pt); }
 }

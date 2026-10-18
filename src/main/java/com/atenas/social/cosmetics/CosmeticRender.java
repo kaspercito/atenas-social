@@ -292,8 +292,8 @@ public final class CosmeticRender {
             if (item == null || !Cosmetics.inRange(p)) return;
 
             ps.pushPose();
-            // pegada a la espalda (la de Mojang va a 0.125); con alas puestas NO se aleja: las alas nacen detrás de la capa (WingMesh.zoff)
-            ps.translate(0.0D, 0.0D, 0.15D);
+            // pegada a la espalda (la de Mojang va a 0.125; 0.14 la deja tocando el cuerpo y solo libra la capa "jacket" del skin)
+            ps.translate(0.0D, 0.0D, 0.14D);
             double dx = Mth.lerp(pt, p.xCloakO, p.xCloak) - Mth.lerp(pt, p.xo, p.getX());
             double dy = Mth.lerp(pt, p.yCloakO, p.yCloak) - Mth.lerp(pt, p.yo, p.getY());
             double dz = Mth.lerp(pt, p.zCloakO, p.zCloak) - Mth.lerp(pt, p.zo, p.getZ());
@@ -350,7 +350,7 @@ public final class CosmeticRender {
      */
     public static final class WingsLayer extends Base {
         private final WingMesh mesh = new WingMesh();
-        private final MembraneWing membrane = new MembraneWing();
+        private final WingPlane plane = new WingPlane();
         private final VertexSink sink = new VertexSink();
         /** Estado por jugador: la fase del aleteo nunca se detiene y la mezcla suelo/aire es gradual. */
         private static final class State { float air, phase, spd, vy; long last; }
@@ -386,22 +386,32 @@ public final class CosmeticRender {
             float a = st.air;
             float open = (0.85F + Mth.sin(st.phase * 0.2F) * 0.07F + Mth.sin(st.phase * 0.47F) * 0.025F - st.spd * 0.22F) * (1F - a)
                 + (0.50F + Mth.sin(st.phase * 0.55F) * 0.32F - st.vy * 0.18F) * a;
+            // al caminar/correr las alas acompañan cada paso (antes casi no se notaba); en el aire el aleteo ya manda
+            open += Mth.sin(limbSwing * 1.2F) * limbSwingAmount * 0.26F * (1F - a);
+            WingPlane.Style ws = item.membrane ? WingPlane.styleOf(item.modelId()) : null;
+            float time = st.phase;
+            if (ws != null) { // personalidad del ala: latido en reposo (abre y cierra), velocidad propia
+                time = st.phase * ws.speed;
+                open += ws.idle * Mth.sin(st.phase * ws.idleFreq) * (1F - 0.7F * a);
+                open *= ws.open;
+            }
             // Con capa: las alas nacen a los lados de la capa (outset) y se abren más hacia los lados que hacia atrás, así no la tapan.
             boolean cape = Cosmetics.of(p, Cosmetics.Type.CAPE) != null;
             if (cape) open *= 0.80F;
             open *= item.openMul; // cada cosmético puede abrir más o menos (por defecto 1)
             mesh.outset = cape ? 1.2F : 0F; // casi pegadas a la columna: nacen detrás de la capa, no separadas
             mesh.zoff = cape ? 1.8F : 0F;
-            membrane.outset = mesh.outset;
-            membrane.zoff = mesh.zoff;
+            plane.outset = mesh.outset;
+            plane.zoff = mesh.zoff;
             if (p.isCrouching()) open = (cape ? 0.9F : 1.15F) * item.openMul;
-            float flap = 0.025F + 0.075F * a + 0.04F * st.spd; // siempre ondulan un poco; más en el aire
+            float flap = 0.03F + 0.075F * a + 0.11F * st.spd + Math.abs(limbSwingAmount) * 0.03F; // siempre ondulan un poco; más al andar y en el aire
+            if (ws != null) flap *= ws.amp;
 
             ps.pushPose();
             getParentModel().body.translateAndRotate(ps);
             VertexConsumer vc = buf.getBuffer(RenderType.entityCutoutNoCull(item.texture));
             sink.begin(vc, ps.last(), light(item, light));
-            if (item.membrane) membrane.emit(sink, open, st.phase, flap, twoSided, 0.0625F);
+            if (item.membrane) plane.emit(sink, open, time, flap, twoSided, WingPlane.gridFor(d2), 0.0625F);
             else mesh.emit(sink, open, st.phase, flap, segs, twoSided, 0.0625F);
             sink.vc = null;
             ps.popPose();

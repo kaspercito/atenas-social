@@ -40,3 +40,6 @@ Todo en un solo jar (solo cliente, el servidor no lo necesita):
 - Alas y mascotas ya eran idénticas en los dos mods (mismos archivos).
 - Nombres de capas, alas y sombreros iguales a los del cliente. Capa lejana (más de 16 bloques): menos filas y sin cantos, como en el cliente. Se quitaron las 9 texturas viejas sin registrar.
 - Sin probar en el juego: el Java nuevo pasa el análisis de sintaxis pero no se compiló contra Forge. Ver en juego que los brillos del halo/auriculares/cuernos se ven bien y que el laurel y el vikingo no se cruzan con la capa/alas.
+
+## Mascotas v2 (sin probar en el juego)
+12 mascotas (nuevas: conejo, panda, loro, buho, dragoncito). Modelo definido en `tools/pet_models.py`; `python3 tools/gen_pets.py` regenera texturas, iconos y `pets/models.json` (lo lee `PetSpec`). Se suben al hombro al volar (elytras / creativo), caer de lejos, trepar, ir montado; los perros nadan, gatos y conejos se suben al hombro en el agua; aves y dragon vuelan a tu lado. Capa pegada a la espalda (0.14).

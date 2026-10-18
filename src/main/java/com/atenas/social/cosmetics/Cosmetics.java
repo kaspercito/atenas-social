@@ -169,6 +169,12 @@ public final class Cosmetics {
         addMembrane("ceniza", "Alas de Ceniza", 0xFF78767E);
         addMembrane("cristal", "Alas de Cristal", 0xFFC8F5FF);
         addMembrane("nebulosa", "Alas Nebulosa", 0xFF9646DC);
+        addMembrane("mariposa", "Alas de Mariposa", 0xFFFF9A1E);
+        addMembrane("hada", "Alas de Hada", 0xFFFFB6E6);
+        addMembrane("fenix", "Alas de F\u00e9nix", 0xFFFF7A14);
+        addMembrane("tormenta", "Alas de Tormenta", 0xFF5078E6);
+        addMembrane("cibernetico", "Alas Cibern\u00e9ticas", 0xFF00DCFF);
+        addMembrane("esqueleto", "Alas de Esqueleto", 0xFFDDD6C4);
 
         add(Type.HAT, "halo", "Halo", 0xFFFFE680, true);
         add(Type.HAT, "corona", "Corona", 0xFFF5C542, false);
@@ -182,7 +188,7 @@ public final class Cosmetics {
         add(Type.HAT, "pirata", "Sombrero Pirata", 0xFF17171D, false);
         add(Type.HAT, "vikingo", "Casco Vikingo", 0xFFA9B0BF, false);
         add(Type.HAT, "laurel", "Corona de Laurel", 0xFFE8B84A, false);
-        // Mascotas (el modelo se elige por id en PetSpec: perro/dalmata = dog, husky, gato/gatonegro = cat, zorro = fox)
+        // Mascotas (el modelo de cada id sale de pets/models.json)
         add(Type.PET, "perro", "Perro", 0xFFCD9654, false);
         add(Type.PET, "husky", "Husky", 0xFF68707E, false);
         add(Type.PET, "dalmata", "D\u00e1lmata", 0xFFF4F4F6, false);
@@ -190,6 +196,11 @@ public final class Cosmetics {
         add(Type.PET, "gatonegro", "Gato negro", 0xFF24242E, false);
         add(Type.PET, "zorro", "Zorro", 0xFFE87028, false);
         add(Type.PET, "catalina", "Catalina", 0xFFF2F0EE, false);
+        add(Type.PET, "conejo", "Conejo", 0xFFCEBCA8, false);
+        add(Type.PET, "panda", "Panda", 0xFFF4F4F2, false);
+        add(Type.PET, "loro", "Loro", 0xFFD82626, false);
+        add(Type.PET, "buho", "B\u00faho", 0xFF8A6848, false);
+        add(Type.PET, "dragoncito", "Dragoncito", 0xFF42A86C, false);
         // Catalina es privada: hasta que el catalogo diga que tu nick esta en su lista, no aparece ni se puede elegir.
         find(Type.PET, "catalina").locked = true;
         load();
@@ -201,7 +212,10 @@ public final class Cosmetics {
 
     private static void addAnim(Type t, String id, String name, int color, boolean glow) { ALL.add(new Item(t, id, name, color, glow, ANIM_FRAMES)); }
 
-    private static void addMembrane(String id, String name, int color) { ALL.add(new Item(Type.WINGS, id, name, color, false, 1, false, null, true)); }
+    private static void addMembrane(String id, String name, int color) {
+        boolean glow = id.equals("fenix") || id.equals("cibernetico") || id.equals("tormenta") || id.equals("hada") || id.equals("abismo") || id.equals("solar");
+        ALL.add(new Item(Type.WINGS, id, name, color, glow, 1, false, null, true)); // las que brillan se ven a plena luz
+    }
 
     /** Fotograma actual de una capa animada (0 si esta apagado o no es animada). */
     public static int frameOf(Item it) {
