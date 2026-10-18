@@ -22,6 +22,7 @@ import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.EventPriority;
 import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 import org.lwjgl.glfw.GLFW;
 
@@ -35,6 +36,9 @@ public final class ClientInit {
     static void init() {
         IEventBus mod = FMLJavaModLoadingContext.get().getModEventBus();
         mod.addListener(ClientInit::registerKeys);
+        // La carga de mods dura minutos y el cuadro de render casi no corre: se instala nuestra pantalla en cuanto empieza la carga
+        // (FMLClientSetupEvent ya corre con el overlay de Mojang creado), no en el primer RenderTick.
+        mod.addListener((FMLClientSetupEvent ev) -> Minecraft.getInstance().execute(() -> AtenasLoading.tryInstall(Minecraft.getInstance())));
         mod.addListener(CosmeticRender::registerDefinitions);
         mod.addListener(CosmeticRender::addLayers);
         MinecraftForge.EVENT_BUS.register(new ClientInit());
@@ -120,6 +124,7 @@ public final class ClientInit {
         if (e.phase != TickEvent.Phase.END) return;
         Minecraft mc = Minecraft.getInstance();
         if (mc.getUser() == null) return;
+        AtenasLoading.tryInstall(mc);
         SocialClient.nameSupplier = () -> mc.getUser().getName();
         ticks++;
         WindowBrand.tick(mc, ticks);

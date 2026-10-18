@@ -41,6 +41,7 @@ import java.util.Random;
  */
 final class AtenasLoading extends Overlay {
     private static boolean handled;
+    private static int misses;
 
     private final Minecraft mc;
     private final Overlay orig;
@@ -73,7 +74,7 @@ final class AtenasLoading extends Overlay {
         if (handled) return;
         try {
             Overlay o = mc.getOverlay();
-            if (o == null) return;           // todavia no hay (o ya termino)
+            if (o == null) { if (++misses > 600) handled = true; return; } // todavia no hay: se reintenta (el arranque puede tardar mucho)
             handled = true;                  // solo el de arranque: F3+T y otras recargas siguen con el normal
             if (!(o instanceof LoadingOverlay) || o instanceof AtenasLoading) return;
             ReloadInstance ri = findReload(o);
