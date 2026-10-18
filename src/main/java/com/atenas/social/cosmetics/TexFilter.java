@@ -29,7 +29,7 @@ public final class TexFilter {
             GlStateManager._texParameter(3553, 10240, 9729);   // MAG_FILTER = LINEAR
             GlStateManager._texParameter(3553, 10241, 9987);   // MIN_FILTER = LINEAR_MIPMAP_LINEAR
             if (maxLevel >= 0) GlStateManager._texParameter(3553, 33085, maxLevel); // TEXTURE_MAX_LEVEL
-            GlStateManager.glGenerateMipmap(3553);
+            org.lwjgl.opengl.GL30.glGenerateMipmap(3553);
         } catch (Throwable e) {
             System.err.println("[AtenasSocial] filtro de textura: " + e);
         }
