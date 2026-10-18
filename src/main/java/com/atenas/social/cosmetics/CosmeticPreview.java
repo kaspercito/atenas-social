@@ -97,6 +97,10 @@ final class CosmeticPreview {
         float age = ms / 50f;                           // "ageInTicks"
         float spin = (ms % 9000L) / 9000f * 360f;       // una vuelta cada 9 s
 
+        // El modelo nace con young = true (version "bebe": cuerpo a la mitad, anclado a los pies, cabeza mas chica). El juego lo apaga al
+        // dibujar un jugador de verdad; aqui dibujamos el modelo a mano, asi que hay que apagarlo para que tenga la altura normal.
+        m.young = false;
+
         // pose suave: brazos que se balancean un poco
         float sw = (float) Math.sin(age * 0.07f) * 0.06f;
         m.head.xRot = 0f; m.head.yRot = 0f; m.head.zRot = 0f;

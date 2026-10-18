@@ -176,6 +176,7 @@ public final class SocialClient {
         } catch (ApiError e) {
             verifyError = "el servicio respondió " + e.code + ": " + e.getMessage();
             System.err.println("[AtenasSocial] verificación: " + verifyError + " · nick=" + name);
+            if ("not_verified".equals(e.code)) diagnoseVerify(name);
             if (!"mojang_down".equals(e.code) && !"too_many".equals(e.code) && !"no_challenge".equals(e.code) && !"server".equals(e.code)) {
                 failedFor = name; failedAt = System.currentTimeMillis(); // el servicio dijo que no: se reintenta más tarde
             }
@@ -183,6 +184,32 @@ public final class SocialClient {
             verifyError = "sin conexión con el servicio de verificación (" + e.getMessage() + ")";
             System.err.println("[AtenasSocial] verificación: " + verifyError);
             // sin internet: se reintenta en la próxima llamada
+        }
+    }
+
+    /**
+     * Solo diagnóstico (se llama cuando el servicio dijo not_verified): muestra qué tipo de sesión tiene el juego y repite el registro en
+     * Mojang preguntándole DIRECTO a Mojang si lo ve. Así se sabe si el fallo es de la sesión de este PC o del servicio.
+     */
+    private static void diagnoseVerify(String name) {
+        try {
+            Minecraft mc = Minecraft.getInstance();
+            net.minecraft.client.User u = mc.getUser();
+            String tok = u.getAccessToken() == null ? "" : u.getAccessToken();
+            String shape = tok.length() + " caracteres" + (tok.matches("[0-9a-fA-F-]{32,36}") ? " (parece un UUID: sesión SIN CONEXIÓN)" : "");
+            System.err.println("[AtenasSocial] diagnóstico: tipo de sesión=" + u.getType() + " · token=" + shape + " · uuid=" + u.getProfileId() + " · nick=" + u.getName());
+            JsonObject ch = rawPost("/auth/challenge", new JsonObject());
+            String sid = str(ch, "serverId");
+            mc.getMinecraftSessionService().joinServer(u.getGameProfile(), u.getAccessToken(), sid);
+            HttpURLConnection c = (HttpURLConnection) new URL("https://sessionserver.mojang.com/session/minecraft/hasJoined?username="
+                + java.net.URLEncoder.encode(u.getName(), "UTF-8") + "&serverId=" + java.net.URLEncoder.encode(sid, "UTF-8")).openConnection();
+            c.setConnectTimeout(6000);
+            c.setReadTimeout(6000);
+            int st = c.getResponseCode();
+            System.err.println("[AtenasSocial] diagnóstico: Mojang hasJoined desde este PC = HTTP " + st
+                + (st == 200 ? " (Mojang SÍ ve tu sesión: el fallo está en el servicio)" : st == 204 ? " (Mojang NO registró tu sesión)" : ""));
+        } catch (Exception e) {
+            System.err.println("[AtenasSocial] diagnóstico: " + e);
         }
     }
 
