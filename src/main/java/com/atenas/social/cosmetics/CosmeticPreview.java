@@ -145,7 +145,15 @@ final class CosmeticPreview {
 
         if (cape != null) drawCape(ps, buf, cape, age, light);
         if (wings != null) drawWings(ps, buf, m, wings, cape != null, age, light);
-        if (hat != null) {
+        if (hat != null && !hat.custom) {
+            HatMesh mesh = HatMesh.get(hat.id);
+            if (mesh != null) {
+                ps.pushPose();
+                m.head.translateAndRotate(ps);
+                mesh.draw(ps, buf, hat, light, age);
+                ps.popPose();
+            }
+        } else if (hat != null) {
             ModelPart part = hat(hat.modelId());
             if (part != null) {
                 ps.pushPose();
@@ -174,6 +182,7 @@ final class CosmeticPreview {
         boolean anim = item.frames > 1;
         int frames = anim ? item.frames : 1;
         int frame = anim ? Cosmetics.frameOf(item) % frames : 0;
+        TexFilter.prepare(item.texture, anim ? 3 : -1);
         VertexConsumer vc = buf.getBuffer(RenderType.entityCutoutNoCull(item.texture));
         SINK.begin(vc, ps.last(), item.glow ? LightTexture.FULL_BRIGHT : light);
         CAPE.emit(SINK, frame, frames, 0.0625F, (float) Math.toRadians(tilt * 0.65f), CapeWave.ampFor(swing), age, (float) Math.toRadians(sway / 4.0f));

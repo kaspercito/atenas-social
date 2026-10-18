@@ -14,6 +14,8 @@ package com.atenas.social.cosmetics;
 public class CapeMesh {
     public static final int SEGS = CapeWave.SEGS;
     private static final float HALF_W = 5f, DEPTH = 1f;
+    /** Capa lejana (mas de 16 bloques): una fila de cada tantas y sin los cantos de 1 px. */
+    public static final int FAR_ROW_STEP = 4;
 
     private final float[] rx = new float[SEGS], rz = new float[SEGS];
     /** Punto de cada articulacion (en la cara de adentro, que es la linea del pivote) y su orientacion 3x3 (por filas). */
@@ -94,13 +96,18 @@ public class CapeMesh {
 
     /** Pone la capa en su pose (ver {@link CapeWave#angles}) y entrega sus cuadrados al Sink (GL_QUADS; se dibuja sin culling). */
     public void emit(WingMesh.Sink wr, int frame, int frames, float scale, float bend, float amp, float time, float side) {
+        emit(wr, frame, frames, scale, bend, amp, time, side, false);
+    }
+
+    public void emit(WingMesh.Sink wr, int frame, int frames, float scale, float bend, float amp, float time, float side, boolean far) {
         this.frame = frame;
         this.frames = frames;
         CapeWave.angles(bend, amp, time, side, rx, rz);
         build();
 
-        for (int r = 0; r < SEGS; r++) {
-            int a = r, b = r + 1;
+        final int step = far ? FAR_ROW_STEP : 1;
+        for (int r = 0; r < SEGS; r += step) {
+            int a = r, b = Math.min(SEGS, r + step);
             float va = 1f + r * CapeWave.SEG_H, vb = 1f + b * CapeWave.SEG_H;
             // cara de afuera (la que se ve desde atras): u 1..11, normal hacia afuera (-z del marco)
             vtx(wr, a, -HALF_W, -DEPTH, 1f, va, 0, 0, -1, scale);
@@ -112,6 +119,7 @@ public class CapeMesh {
             vtx(wr, a, HALF_W, 0f, 12f, va, 0, 0, 1, scale);
             vtx(wr, b, HALF_W, 0f, 12f, vb, 0, 0, 1, scale);
             vtx(wr, b, -HALF_W, 0f, 22f, vb, 0, 0, 1, scale);
+            if (far) continue;
             // canto izquierdo y derecho (1 de grueso)
             vtx(wr, a, -HALF_W, -DEPTH, 1f, va, -1, 0, 0, scale);
             vtx(wr, a, -HALF_W, 0f, 0f, va, -1, 0, 0, scale);

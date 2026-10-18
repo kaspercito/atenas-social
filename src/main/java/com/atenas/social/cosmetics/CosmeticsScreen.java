@@ -140,6 +140,7 @@ public class CosmeticsScreen extends Screen {
                 g.drawCenteredString(font, "\u2715", x + CW / 2, y + 14, Ui.MUTED);
                 g.drawCenteredString(font, "Ninguno", x + CW / 2, y + CH - 14, on ? Ui.TEXT : Ui.MUTED);
             } else {
+                TexFilter.prepare(it.icon, -1);
                 g.blit(it.icon, x + (CW - 32) / 2, y + 6, 32, 32, 0, 0, 32, 32, 32, 32);
                 g.drawCenteredString(font, fit(it.name, CW - 4), x + CW / 2, y + CH - 14, on ? Ui.TEXT : Ui.MUTED);
                 if (hot) hovered = it;

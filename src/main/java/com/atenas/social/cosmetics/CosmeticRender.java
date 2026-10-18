@@ -33,7 +33,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/** Modelos y capas de dibujo de los cosméticos (capa de tela, alas de plumas y sombreros). Las mascotas están en {@link PetRender}. */
+/** Modelos y capas de dibujo de los cosméticos (capa de tela, alas de plumas y sombreros en malla HD). Las mascotas están en {@link PetRender}. */
 public final class CosmeticRender {
     public static final ModelLayerLocation HATS = loc("hats");
 
@@ -312,13 +312,16 @@ public final class CosmeticRender {
             ps.mulPose(Axis.YP.rotationDegrees(180.0F - sway / 2.0F));
             if (p.isCrouching()) ps.translate(0.0D, 0.115D, 0.0875D); // el modelo baja y se adelanta al agacharse
 
+            Minecraft mc = Minecraft.getInstance();
+            boolean far = p != mc.player && mc.player != null && p.distanceToSqr(mc.player) > 256.0;
             boolean anim = item.frames > 1;
             int frames = anim ? item.frames : 1;
             int frame = anim ? Cosmetics.frameOf(item) % frames : 0;
+            TexFilter.prepare(item.texture, anim ? 3 : -1);
             VertexConsumer vc = buf.getBuffer(RenderType.entityCutoutNoCull(item.texture));
             sink.begin(vc, ps.last(), light(item, light));
             mesh.emit(sink, frame, frames, 0.0625F, (float) Math.toRadians(tilt * 0.65F), CapeWave.ampFor(swing), age,
-                (float) Math.toRadians(sway / 4.0F) + Mth.clamp((p.yBodyRot - p.yBodyRotO) * 0.012F, -0.3F, 0.3F));
+                (float) Math.toRadians(sway / 4.0F) + Mth.clamp((p.yBodyRot - p.yBodyRotO) * 0.012F, -0.3F, 0.3F), far);
             sink.vc = null;
             ps.popPose();
         }
@@ -405,14 +408,20 @@ public final class CosmeticRender {
         }
     }
 
-    /** Sombreros: siguen la cabeza. El halo flota. */
+    /** Ids que tienen modelo de cajas (64x64): solo los usan los sombreros del catálogo descargados, que traen textura con ese UV. */
+    private static final String[] BOX_HATS = {"halo", "corona", "galera", "gato", "cuernos", "mago", "auriculares", "conejo", "gorra"};
+
+    /**
+     * Sombreros: siguen la cabeza. Los de Atenas son mallas HD (.atm, las mismas del cliente 1.8.9, ver {@link HatMesh}); los del
+     * catálogo (texturas subidas con el UV de cajas) siguen con el modelo de cajas. El halo flota.
+     */
     public static final class HatLayer extends Base {
         private final Map<String, ModelPart> hats = new HashMap<>();
 
         public HatLayer(RenderLayerParent<AbstractClientPlayer, PlayerModel<AbstractClientPlayer>> parent, EntityModelSet set) {
             super(parent);
             ModelPart root = set.bakeLayer(HATS);
-            for (Cosmetics.Item it : Cosmetics.of(Cosmetics.Type.HAT)) if (!it.custom) hats.put(it.id, root.getChild(it.id));
+            for (String id : BOX_HATS) hats.put(id, root.getChild(id));
         }
 
         @Override
@@ -421,9 +430,21 @@ public final class CosmeticRender {
             if (p.isInvisible()) return;
             Cosmetics.Item item = Cosmetics.of(p, Cosmetics.Type.HAT);
             if (item == null) return;
+            Minecraft mc = Minecraft.getInstance();
+            if (p != mc.player && mc.player != null && p.distanceToSqr(mc.player) > HatMesh.MAX_DIST_SQ) return;
+
+            if (!item.custom) {
+                HatMesh mesh = HatMesh.get(item.id);
+                if (mesh == null) return; // sin malla no hay nada que dibujar (la textura es un atlas, no sirve para cajas)
+                ps.pushPose();
+                getParentModel().head.translateAndRotate(ps);
+                mesh.draw(ps, buf, item, light, age);
+                ps.popPose();
+                return;
+            }
+
             ModelPart part = hats.get(item.modelId());
             if (part == null) return;
-
             ps.pushPose();
             getParentModel().head.translateAndRotate(ps);
             if (item.modelId().equals("halo")) ps.translate(0.0D, Mth.sin(age * 0.08F) * 0.025D, 0.0D);
