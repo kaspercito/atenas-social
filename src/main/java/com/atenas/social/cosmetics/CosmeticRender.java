@@ -293,7 +293,7 @@ public final class CosmeticRender {
 
             ps.pushPose();
             // pegada a la espalda (la de Mojang va a 0.125); con alas puestas NO se aleja: las alas nacen detrás de la capa (WingMesh.zoff)
-            ps.translate(0.0D, 0.0D, 0.17D);
+            ps.translate(0.0D, 0.0D, 0.15D);
             double dx = Mth.lerp(pt, p.xCloakO, p.xCloak) - Mth.lerp(pt, p.xo, p.getX());
             double dy = Mth.lerp(pt, p.yCloakO, p.yCloak) - Mth.lerp(pt, p.yo, p.getY());
             double dz = Mth.lerp(pt, p.zCloakO, p.zCloak) - Mth.lerp(pt, p.zo, p.getZ());
@@ -307,7 +307,7 @@ public final class CosmeticRender {
             if (p.isCrouching()) lift += 25.0F;
             // La inclinación total es la de siempre, pero solo el 35 % la gira el cuerpo entero: el resto lo doblan las tiras de tela.
             float tilt = swing / 2.0F + lift;
-            ps.mulPose(Axis.XP.rotationDegrees(Math.max(9.0F, 6.0F + tilt * 0.35F) + (p.isCrouching() ? 12.0F : 0.0F)));
+            ps.mulPose(Axis.XP.rotationDegrees(Math.max(8.0F, 6.0F + tilt * 0.35F) + (p.isCrouching() ? 6.0F : 0.0F)));
             ps.mulPose(Axis.ZP.rotationDegrees(sway / 4.0F));
             ps.mulPose(Axis.YP.rotationDegrees(180.0F - sway / 2.0F));
             if (p.isCrouching()) ps.translate(0.0D, 0.115D, 0.0875D); // el modelo baja y se adelanta al agacharse

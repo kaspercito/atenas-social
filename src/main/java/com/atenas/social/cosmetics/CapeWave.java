@@ -21,6 +21,13 @@ public final class CapeWave {
      * @param rx    salida: giro de cada tira alrededor de x (adelante/atras)
      * @param rz    salida: giro de cada tira alrededor de z (a los lados)
      */
+    /**
+     * Signo del giro en el marco de la malla: ese marco esta girado 180 grados respecto al cuerpo (la cara de afuera es -z), asi que
+     * un giro POSITIVO alrededor de x acerca la punta al cuerpo. Para curvar hacia atras hay que girar en negativo. Si en el juego la
+     * capa se curvara al reves, basta con poner aqui 1f.
+     */
+    private static final float BACK = -1f;
+
     public static void angles(float bend, float amp, float time, float side, float[] rx, float[] rz) {
         float per = bend / (SEGS - 1);
         float k8 = 8f / SEGS; // la onda se pensó para 8 tiras: con mas filas se reparte para que la tela ondee igual
@@ -31,10 +38,10 @@ public final class CapeWave {
             float k = (float) i / (SEGS - 1); // 0 arriba, 1 en la punta
             float wave = (float) Math.sin(time * 0.30f - i * 0.85f * k8) * amp * k8 * (0.35f + 0.65f * k);
             float r = per + wave;
-            // la tela nunca se dobla hacia el cuerpo: el giro acumulado se mantiene >= 0 (hacia atras)
+            // r > 0 = la tela se curva HACIA ATRAS (lejos del cuerpo); el giro acumulado nunca baja de 0 (no se mete al cuerpo)
             if (cum + r < 0f) r = -cum;
             cum += r;
-            rx[i] = r;
+            rx[i] = BACK * r;
             rz[i] = side / (SEGS - 1) + (float) Math.sin(time * 0.21f - i * 0.6f * k8 + 1.3f) * amp * 0.25f * k8 * k;
         }
     }
