@@ -14,6 +14,10 @@ import java.util.Map;
 public final class WingPlane {
     public static final float W = 36f, T = 24f, B = 12f, H = T + B;
     public static final int MAX_N = 12;
+    /** Tamano y altura de las alas de plano al dibujarlas (la textura no cambia: solo se encoge la malla). 1 = tamano original. */
+    public static final float SCALE = 0.70f;
+    /** Cuanto bajan (en unidades del modelo, 1/16 de bloque): antes la raiz subia 24 por encima del hombro, muy por encima de la cabeza. */
+    public static final float DROP = 4f;
 
     /** Personalidad de cada ala: velocidad del aleteo, fuerza de la onda, latido en reposo (abrir y cerrar) y su frecuencia. */
     public static final class Style {
@@ -95,6 +99,6 @@ public final class WingPlane {
         float yv = y + flap * 6f * (float) Math.pow(su, 1.5) * (float) Math.cos(ph - 0.8f) - 1.0f * su * su;
         float X = x * (float) Math.cos(psi);
         float Z = x * (float) Math.sin(psi) + flap * 2.6f * su * (float) Math.sin(time * 0.9f - x * 0.25f + y * 0.2f);
-        s.vertex(sx * (WingMesh.PIVOT_X + outset + X) * unit, (WingMesh.PIVOT_Y - yv) * unit, (WingMesh.PIVOT_Z + zoff + Z) * unit, su, sv);
+        s.vertex(sx * (WingMesh.PIVOT_X + outset + X * SCALE) * unit, (WingMesh.PIVOT_Y - (yv * SCALE - DROP)) * unit, (WingMesh.PIVOT_Z + zoff + Z * SCALE) * unit, su, sv);
     }
 }

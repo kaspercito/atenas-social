@@ -42,6 +42,14 @@ public final class PetBrain {
     public float tail, ptail, earTwitch, pearTwitch, flapAmp, pflapAmp;
     public float wagSpeed = 0.5f, wagAmp = 0.4f;
     public int mode = IDLE;
+
+    /** Atencion (0..1): sube cuando te acercas o la miras; la mascota te mira, mueve la cola y te saluda. */
+    public float attention;
+    /** Evento de sonido de este tick (lo lee y reproduce el render; la logica no sabe de Minecraft). */
+    public static final int SND_NONE = 0, SND_AMBIENT = 1, SND_GREET = 2;
+    public int sound;
+    private int nextAmbient = 500, greetCool = 100, farTicks;
+    private boolean joyJump;
     public int age;
     public boolean spawned;
 
@@ -84,6 +92,7 @@ public final class PetBrain {
     // ================================================================== tick
     public void tick(Owner o, Ground g) {
         age++;
+        sound = SND_NONE;
         if (!spawned) { teleport(o.x, o.y, o.z, o.bodyYaw); lastOx = o.x; lastOy = o.y; lastOz = o.z; }
         px = x; py = y; pz = z; pyaw = yaw; ppitch = pitch; proll = roll;
         pwalkPos = walkPos; pswing = swing; psit = sit; pmouth = mouth; pswim = swim; pperch = perch; pfly = fly; pflap = flap; pspread = spread;
@@ -120,6 +129,26 @@ public final class PetBrain {
 
         shoulder(o, tmp);
         double shX = tmp[0], shY = tmp[1], shZ = tmp[2];
+
+        // ---- ¿te ve? (te acercas o la miras): se pone atenta, te mira, mueve la cola y a veces te saluda
+        double adx = x - o.x, ady = (y + 0.3) - (o.y + 1.62), adz = z - o.z, ad = Math.sqrt(adx * adx + ady * ady + adz * adz);
+        boolean noticed = false;
+        if (ad < 7.0 && ad > 0.3 && perch < 0.2f) {
+            double ly = Math.toRadians(o.yaw), lp = Math.toRadians(o.pitch);
+            double lx = -Math.sin(ly) * Math.cos(lp), lyy = -Math.sin(lp), lz = Math.cos(ly) * Math.cos(lp);
+            noticed = (lx * adx + lyy * ady + lz * adz) / ad > 0.93;      // la estas mirando (unos 20 grados)
+        }
+        boolean returned = false;
+        if (ad > 6.0) farTicks++; else if (ad < 3.2) { if (farTicks >= 40) returned = true; farTicks = 0; }
+        float attT = perch > 0.2f ? 0f : (noticed ? 1f : (ad < 2.4 ? 0.55f : 0f));
+        float prevAtt = attention;
+        attention += (attT - attention) * 0.15f;
+        if (greetCool > 0) greetCool--;
+        if (perch < 0.2f && greetCool <= 0 && ((attention > 0.7f && prevAtt <= 0.7f) || returned)) {
+            sound = SND_GREET; greetCool = 400;
+            if (hop || !avoidWater) joyJump = !flier;                       // saltito de alegria (conejo y los de suelo que no temen al agua)
+        }
+        if (--nextAmbient <= 0) { nextAmbient = 600 + rnd.nextInt(900); if (sound == SND_NONE) sound = SND_AMBIENT; }
 
         // ---- simulacion fisica
         if (flier) simFlier(o, g, ownerSpeed, flightLike, shX, shY, shZ);
@@ -224,6 +253,7 @@ public final class PetBrain {
         // vertical
         double gy = g.ground(sx, sz, Math.max(oy, sy) + 1.2);
         if (Double.isNaN(gy)) gy = Math.min(sy, oy);
+        if (joyJump) { if (vy == 0 && sy <= gy + 0.02) vy = 0.30; joyJump = false; }
         boolean swimming = false;
         double wsurf = g.water(sx, sz, sy + 0.3);
         if (!Double.isNaN(wsurf) && wsurf - gy > 0.7) {
@@ -339,6 +369,7 @@ public final class PetBrain {
             if (chirpLeft > 0) { chirpLeft--; mt = 0.5f + 0.5f * (float) Math.sin(chirpLeft * 1.7); }
             else if (--nextChirp <= 0) { chirpLeft = 10; nextChirp = 100 + rnd.nextInt(200); }
         }
+        if (!flier && !hop) mt = Math.max(mt, 0.45f * attention);   // jadea / maulla al verte
         mouth += (mt - mouth) * 0.2f;
 
         // mirada: al dueño; en reposo, a veces curiosea a los lados
@@ -353,6 +384,7 @@ public final class PetBrain {
                 lookPitchTarget = away ? (rnd.nextFloat() - 0.5f) * 30f : 0f;
             }
         } else { lookTarget = 0f; lookPitchTarget = mode == RUN ? 8f : mode == SWIM ? -14f : 0f; lookLeft = 20; }
+        if (attention > 0.4f && calm && !perched) { lookTarget = lookYaw; lookPitchTarget = -12f * attention; lookLeft = Math.max(lookLeft, 10); }   // te mira a ti
         if (perched) lookTarget = clampf(lookTarget, -70f, 70f);
         headYaw += (lookTarget - headYaw) * 0.10f;
         headPitch += (((mode == SIT ? -10f : 0f) + lookPitchTarget) - headPitch) * 0.1f;
@@ -363,9 +395,11 @@ public final class PetBrain {
         wagAmp = mode == RUN ? 0.35f : (Math.sqrt(dx * dx + dz * dz) < 3.5 || perched ? 0.55f : 0.25f);
         if (mode == SWIM) { wagSpeed = 0.5f; wagAmp = 0.15f; }
         if (flier) { wagAmp = 0.12f; wagSpeed = 0.2f; }
+        if (attention > 0.05f && !flier && mode != SWIM) { wagSpeed += 0.45f * attention; wagAmp = Math.max(wagAmp, 0.30f + 0.30f * attention); }
         tail = (float) Math.sin(age * wagSpeed) * wagAmp;
         if (--nextTwitch <= 0) { twitchLeft = 8; nextTwitch = 50 + rnd.nextInt(120); }
         if (twitchLeft > 0) { twitchLeft--; earTwitch = (float) Math.sin(twitchLeft * 1.6) * 0.5f; } else earTwitch = 0f;
+        if (attention > 0.05f) earTwitch += 0.25f * attention;   // orejas atentas
     }
 
     private static double dist2(double ax, double az, double bx, double bz) { return (ax - bx) * (ax - bx) + (az - bz) * (az - bz); }

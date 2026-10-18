@@ -229,6 +229,7 @@ public final class PetRender {
             pet.item = item;
             fill(owner, p);
             pet.brain.tick(owner, GROUND);
+            if (pet.brain.sound != PetBrain.SND_NONE) PetSounds.play(item.modelId(), pet.brain.sound, pet.brain.x, pet.brain.y + 0.3, pet.brain.z);
         }
         for (Iterator<Pet> it = pets.values().iterator(); it.hasNext();) if (!it.next().seen) it.remove();
     }
@@ -252,9 +253,10 @@ public final class PetRender {
             double x = b.ix(pt), y = b.iy(pt), z = b.iz(pt);
             // pegada a la camara (la tuya en primera persona, con la mascota en tu hombro) tapa la pantalla: no se dibuja
             double cdx = x - cam.x, cdy = y + 0.2 - cam.y, cdz = z - cam.z;
-            // la tuya en primera persona se oculta si pasa cerca de la camara (estorba al girar y caminar); las demas, solo si casi la tocan
-            double cut = pet.mine && mc.options.getCameraType().isFirstPerson() ? 1.6 : 0.9;
-            if (cdx * cdx + cdy * cdy + cdz * cdz < cut * cut) continue;
+            // En primera persona, TU mascota se oculta solo mientras va (o salta) al hombro, p. ej. al volar: ahi tapa la pantalla.
+            // En el suelo siempre se ve, tambien de cerca; solo desaparece si toca la lente.
+            if (pet.mine && mc.options.getCameraType().isFirstPerson() && b.iperch(pt) > 0.30f) continue;
+            if (cdx * cdx + cdy * cdy + cdz * cdz < 0.25) continue;
             int light = LevelRenderer.getLightColor(mc.level, BlockPos.containing(x, y + 0.5, z));
             Model model = modelFor(k);
             ResourceLocation tex = pet.item.texture;
