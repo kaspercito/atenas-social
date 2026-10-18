@@ -48,6 +48,12 @@ public final class PetBrain {
     /** Evento de sonido de este tick (lo lee y reproduce el render; la logica no sabe de Minecraft). */
     public static final int SND_NONE = 0, SND_AMBIENT = 1, SND_GREET = 2;
     public int sound;
+
+    /** Gesto en curso sobre el hombro (0 = ninguno; 1..PetSpec.GESTURES). Lo que hace cada uno depende del tipo de mascota: ver PetSpec.gesture*. gp = progreso 0..1. */
+    public int gest;
+    public float gp, pgp;
+    private int gLen = 60, nextGest = 40, lastGest;
+    public float igp(float pt) { return li(pgp, gp, pt); }
     private int nextAmbient = 500, greetCool = 100, farTicks;
     private boolean joyJump;
     public int age;
@@ -93,6 +99,7 @@ public final class PetBrain {
     public void tick(Owner o, Ground g) {
         age++;
         sound = SND_NONE;
+        pgp = gp;
         if (!spawned) { teleport(o.x, o.y, o.z, o.bodyYaw); lastOx = o.x; lastOy = o.y; lastOz = o.z; }
         px = x; py = y; pz = z; pyaw = yaw; ppitch = pitch; proll = roll;
         pwalkPos = walkPos; pswing = swing; psit = sit; pmouth = mouth; pswim = swim; pperch = perch; pfly = fly; pflap = flap; pspread = spread;
@@ -196,7 +203,7 @@ public final class PetBrain {
         }
         double h = o.sneaking && fb < 0.5f ? 1.35 : 1.47;   // la mascota pisa su hombrera (ver PetRender): 1.47 = parte de arriba de la hombrera
         double fwd = (o.sneaking && fb < 0.5f) ? 0.12 : 0.0;
-        double side = 0.30;
+        double side = 0.44;   // sobre el hombro/brazo, fuera del ancho de la cabeza (a 0.30 quedaba medio tapada por la cabeza)
         double nn = 0.02 + 0.12 * fb;
         out[0] = o.x + ax * h + rx * side + fx * fwd + nx * nn;
         out[1] = o.y + ay * h + ny * nn;
@@ -344,6 +351,19 @@ public final class PetBrain {
 
     // ------------------------------------------------------------------ gestos
     private void animate(Owner o, double ownerSpeed, boolean flightLike) {
+        // ---- gestos en el hombro: cada cierto tiempo hace algo (mirar, asearse, bostezar, aletear...)
+        if (perch > 0.7f) {
+            if (gest == 0) {
+                if (--nextGest <= 0) {
+                    int ng; do { ng = 1 + rnd.nextInt(PetSpec.GESTURES); } while (ng == lastGest);   // nunca repite el anterior
+                    gest = lastGest = ng; gLen = 50 + rnd.nextInt(40); gp = 0f; pgp = 0f; nextGest = 35 + rnd.nextInt(70);
+                    if (sound == SND_NONE && rnd.nextInt(2) == 0) sound = SND_AMBIENT;
+                }
+            } else { gp += 1f / gLen; if (gp >= 1f) { gest = 0; gp = 0f; pgp = 0f; } }
+        } else {
+            if (gest != 0) { gest = 0; gp = 0f; pgp = 0f; }
+            if (nextGest > 50) nextGest = 50;
+        }
         boolean perched = perch > 0.5f;
         if (flier) {
             float flyT = perched ? 0f : 1f;

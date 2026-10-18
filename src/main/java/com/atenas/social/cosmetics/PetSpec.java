@@ -103,14 +103,21 @@ public final class PetSpec {
         }
     }
 
-    /** Escala con la que se dibuja ahora (mas chica en el hombro). */
+    /** Tamano en el hombro respecto al del suelo (1 = igual). Antes era ~0.5-0.7 y casi no se veia; si la ves muy grande bajalo a 0.85. */
+    public static final float SHOULDER_SCALE = 1.0f;
+
+    /** Escala con la que se dibuja ahora. En el hombro va a tamano normal y "respira". */
     public static float renderScale(Kind k, PetBrain b, float pt) {
-        return k.scale * (1f + (k.perchScale - 1f) * b.iperch(pt));
+        float perch = b.iperch(pt);
+        float ps = SHOULDER_SCALE;                               // fraccion del tamano que tiene en el suelo
+        float breathe = 1f + (float) Math.sin((b.age + pt) * 0.12f) * 0.015f * perch;
+        return k.scale * (1f + (ps - 1f) * perch) * breathe;
     }
 
     public static void pose(Kind k, PetBrain b, float pt, Pose o) {
         o.clear();
-        if (k.flier) poseBird(k, b, pt, o); else poseQuad(k, b, pt, o);
+        if (k.flier) { poseBird(k, b, pt, o); if (b.gest != 0) gestureBird(k, b, pt, o); }
+        else { poseQuad(k, b, pt, o); if (b.gest != 0) gestureQuad(k, b, pt, o); }
     }
 
     // ------------------------------------------------------------------ cuadrupedos
@@ -129,6 +136,9 @@ public final class PetSpec {
         o.rx[BODY] = -sitAng - swim * 0.14f;
         o.dy[BODY] = delta + swim * 3.0f - hopUp + (float) Math.sin(t * 0.13f) * 0.12f * (1f - swim);
         o.dz[BODY] = 0f;
+        // en el hombro nunca esta congelada: respira y se balancea un poco
+        o.dy[BODY] += (float) Math.sin(t * 0.2f) * 0.3f * perch;
+        o.rz[BODY] += (float) Math.sin(t * 0.07f) * 0.05f * perch;
 
         // ---- cuello y cabeza
         float pitch = (float) Math.toRadians(b.iheadPitch(pt));
@@ -186,6 +196,8 @@ public final class PetSpec {
 
         o.rx[BODY] = -0.45f * perched + 0.08f * fly;
         o.dy[BODY] = (float) Math.sin(t * 0.25f) * 0.35f * fly + (float) Math.sin(t * 0.09f) * 0.1f * perched;
+        o.dy[BODY] += (float) Math.sin(t * 0.2f) * 0.3f * perch;
+        o.rz[BODY] += (float) Math.sin(t * 0.06f) * 0.05f * perch;
         float pitch = (float) Math.toRadians(b.iheadPitch(pt));
         o.rx[NECK] = -0.3f * perched + pitch * 0.4f;
         o.rx[HEAD] = 0.45f * perched - 0.05f * fly + pitch * 0.6f;
@@ -217,5 +229,95 @@ public final class PetSpec {
         float tuck = 1.1f * fly;
         o.rx[LL1] = o.rx[LR1] = tuck; o.rx[LL2] = o.rx[LR2] = -tuck * 0.8f;
         o.rx[FR1] = 0; // (ranuras de cuadrupedo sin uso aqui)
+    }
+    // ------------------------------------------------------------------ gestos sobre el hombro (se suman a la pose normal)
+    /** Envolvente del gesto: sube al empezar y baja al terminar (p = progreso 0..1). */
+    private static float env(float p) { float e = Math.min(p, 1f - p) / 0.15f; return e < 0f ? 0f : (e > 1f ? 1f : e); }
+    /** Seno con "c" ciclos a lo largo del gesto. */
+    private static float sn(float p, float c) { return (float) Math.sin(p * c * 6.2831855f); }
+    /** Campana 0..1..0 a lo largo del gesto (bostezo, aullido, rugido). */
+    private static float bell(float p) { return (float) Math.sin(p * 3.1415927f); }
+    /** Levanta una pata delantera hacia la cara (s = FR1 o FL1). */
+    private static void paw(Pose o, int s, float up, float wiggle) { o.rx[s] += -up + wiggle; o.rx[s + 1] += up * 0.95f; o.rx[s + 2] += -up * 0.4f; }
+    /** Cola en ola (cuadrupedos). */
+    private static void wag(Pose o, float p, float w, float cycles, float amp) { for (int i = 0; i < 3; i++) o.ry[T1 + i] += sn(p - i * 0.04f, cycles) * amp * w; }
+
+    /** Numero de gestos distintos que tiene cada mascota sobre el hombro (PetBrain elige entre 1..GESTURES). */
+    public static final int GESTURES = 5;
+
+    private static void gestureQuad(Kind k, PetBrain b, float pt, Pose o) {
+        float p = b.igp(pt), w = env(p) * b.iperch(pt);
+        if (w <= 0.001f) return;
+        String n = k.name == null ? "" : k.name;
+        boolean cat = n.equals("cat"), fox = n.equals("fox"), panda = n.equals("panda"), rabbit = k.hop;
+        int g = b.gest;
+        float hop = Math.abs(sn(p, 1.5f));                    // tres saltitos
+        if (g == 1) {                                         // todas: mira alrededor (izquierda, derecha)
+            o.ry[HEAD] += sn(p, 1f) * (cat ? 1.0f : 1.2f) * w;
+            o.rz[HEAD] += sn(p, 2f) * 0.12f * w;
+            o.rz[EARL] += 0.35f * w; o.rz[EARR] -= 0.35f * w;
+            o.ry[T1] += sn(p, 3f) * 0.4f * w;
+            return;
+        }
+        if (cat) {
+            if (g == 2) { paw(o, FR1, 1.9f * w, sn(p, 8f) * 0.18f * w); o.rx[HEAD] += (0.4f + 0.15f * sn(p, 8f)) * w; }                 // se asea la cara
+            else if (g == 3) { float y = bell(p); o.rx[JAW] += 1.1f * y * w; o.rx[HEAD] -= 0.6f * y * w; o.rx[BODY] -= 0.15f * y * w; }  // bosteza
+            else if (g == 4) { wag(o, p, w, 5f, 1.1f); o.rx[T1] += 0.5f * w; }                                                          // mueve la cola
+            else { o.dy[BODY] += sn(p, 45f) * 0.5f * w; o.rz[HEAD] += 0.35f * w; o.rx[EARL] += 0.3f * w; o.rx[EARR] += 0.3f * w; wag(o, p, w, 1.5f, 0.35f); }   // ronronea
+        } else if (rabbit) {
+            if (g == 2) { paw(o, FR1, 1.8f * w, sn(p, 9f) * 0.25f * w); paw(o, FL1, 1.8f * w, -sn(p, 9f) * 0.25f * w); o.rx[HEAD] += 0.45f * w; }   // se lava la cara
+            else if (g == 3) { o.rx[SNOUT] += sn(p, 14f) * 0.25f * w; o.rx[HEAD] -= 0.2f * w; o.rz[EARL] += sn(p, 5f) * 0.25f * w; o.rz[EARR] -= sn(p, 5f) * 0.25f * w; }   // mueve la nariz
+            else if (g == 4) { o.rz[EARL] += sn(p, 3.5f) * 0.8f * w; o.rz[EARR] -= sn(p, 3.5f) * 0.8f * w; }                            // mueve las orejas
+            else { o.dy[BODY] -= hop * 3.5f * w; o.rx[BODY] -= 0.15f * hop * w; o.rx[EARL] += 0.4f * hop * w; o.rx[EARR] += 0.4f * hop * w; }   // saltitos
+        } else if (panda) {
+            if (g == 2) { paw(o, FR1, 1.7f * w, 0f); o.rx[JAW] += Math.abs(sn(p, 8f)) * 0.5f * w; o.rx[HEAD] += 0.25f * w; }            // mastica
+            else if (g == 3) { o.rx[FL1] += -1.6f * w; o.rz[FL1] += sn(p, 6f) * 0.7f * w; o.rz[HEAD] += 0.2f * w; }                    // saluda con la pata
+            else if (g == 4) { float y = bell(p); o.rx[JAW] += 1.0f * y * w; o.rx[HEAD] -= 0.5f * y * w; }                              // bosteza
+            else { o.rz[BODY] += sn(p, 2.5f) * 0.3f * w; o.rz[HEAD] -= sn(p, 2.5f) * 0.25f * w; }                                      // se balancea
+        } else if (fox) {
+            if (g == 2) { paw(o, FR1, 1.9f * w, sn(p, 8f) * 0.18f * w); o.rx[HEAD] += 0.4f * w; }                                      // se asea
+            else if (g == 3) { o.rz[BODY] += sn(p, 5f) * 0.25f * w; wag(o, p, w, 7f, 1.1f); }                                           // mueve el cuerpo y la cola
+            else if (g == 4) { o.rx[HEAD] -= 0.5f * w; o.rx[SNOUT] += sn(p, 12f) * 0.18f * w; o.ry[HEAD] += sn(p, 2f) * 0.3f * w; }    // olfatea
+            else { o.dy[BODY] -= hop * 3.5f * w; o.rx[HEAD] += 0.3f * hop * w; wag(o, p, w, 6f, 0.7f); }                                 // salta
+        } else {                                                                                                                         // perro / husky
+            if (g == 2) { o.rx[JAW] += (0.5f + 0.3f * Math.abs(sn(p, 8f))) * w; wag(o, p, w, 9f, 1.0f); }                               // jadea y mueve la cola
+            else if (g == 3) { paw(o, FR1, 1.6f * w, sn(p, 5f) * 0.4f * w); o.rz[HEAD] += 0.3f * w; }                                  // da la patita
+            else if (g == 4) { o.rz[BODY] += sn(p, 5f) * 0.22f * w; wag(o, p, w, 10f, 1.2f); o.rz[EARL] += 0.4f * w; o.rz[EARR] -= 0.4f * w; }  // contento
+            else { float h = Math.min(1f, bell(p) * 1.6f); o.rx[HEAD] -= 1.0f * h * w; o.rx[NECK] -= 0.2f * h * w; o.rx[JAW] += (0.5f + 0.15f * sn(p, 4f)) * h * w; }   // aulla
+        }
+    }
+
+    /** Aleteo abierto sobre el hombro. */
+    private static void flapOpen(Pose o, float p, float w, float cycles) {
+        float open = (1.25f + 0.5f * sn(p, cycles)) * w;
+        o.rz[WL1] -= open; o.rz[WR1] += open; o.rz[WL2] -= 0.25f * w; o.rz[WR2] += 0.25f * w;
+        o.dy[BODY] -= Math.abs(sn(p, cycles * 0.5f)) * 1.4f * w;
+    }
+
+    private static void gestureBird(Kind k, PetBrain b, float pt, Pose o) {
+        float p = b.igp(pt), w = env(p) * b.iperch(pt);
+        if (w <= 0.001f) return;
+        String n = k.name == null ? "" : k.name;
+        boolean owl = n.equals("owl"), drake = n.equals("drake");
+        int g = b.gest;
+        if (owl) {
+            if (g == 1) o.ry[HEAD] += sn(p, 1f) * 2.4f * w;                                                    // gira la cabeza casi del todo
+            else if (g == 2) { o.rz[HEAD] += 0.9f * w; o.rx[HEAD] -= 0.15f * w; }                             // inclina la cabeza
+            else if (g == 3) { o.rz[WL1] -= 1.6f * w; o.rz[WL2] -= 0.4f * w; o.rz[BODY] += 0.2f * w; }          // estira un ala
+            else if (g == 4) o.rx[HEAD] += sn(p, 3f) * 0.4f * w;                                               // cabecea
+            else { float h = Math.abs(sn(p, 2f)); o.rx[HEAD] -= 0.35f * h * w; o.rx[JAW] += 0.5f * h * w; o.rx[BEAKL] += 0.4f * h * w; o.dy[BODY] -= 0.6f * h * w; }   // ulula
+        } else if (drake) {
+            if (g == 1) { o.ry[HEAD] += sn(p, 1f) * 1.1f * w; o.rx[HEAD] -= 0.1f * w; }                       // mira alrededor
+            else if (g == 2) flapOpen(o, p, w, 7f);                                                            // bate las alas
+            else if (g == 3) { wag(o, p, w, 4f, 1.1f); float a = Math.abs(sn(p, 3f)); o.rx[JAW] += 0.35f * a * w; o.rx[HEAD] -= 0.15f * a * w; }   // cola y resoplido
+            else if (g == 4) { float h = bell(p); o.rx[JAW] += 1.0f * h * w; o.rx[HEAD] -= 0.6f * h * w; o.rz[WL1] -= 0.6f * h * w; o.rz[WR1] += 0.6f * h * w; o.dy[BODY] -= 1.0f * h * w; }   // rugido
+            else { float h = Math.min(1f, bell(p) * 1.8f), t = 1.5f * h + 0.05f * sn(p, 10f) * h; o.rz[WL1] -= t * w; o.rz[WR1] += t * w; o.rz[WL2] -= 0.2f * h * w; o.rz[WR2] += 0.2f * h * w; }   // estira las alas
+        } else {                                                                                                // loro
+            if (g == 1) { o.rx[HEAD] += sn(p, 4f) * 0.5f * w; o.ry[HEAD] += sn(p, 2f) * 0.5f * w; }            // cabecea rapido
+            else if (g == 2) { o.ry[HEAD] += 1.4f * w; o.rx[HEAD] += 0.7f * w; o.rz[WR1] += (0.5f + 0.15f * sn(p, 6f)) * w; }   // se arregla las plumas
+            else if (g == 3) flapOpen(o, p, w, 8f);                                                            // bate las alas
+            else if (g == 4) { o.rz[HEAD] += sn(p, 1.5f) * 0.6f * w; o.rx[BEAKL] += (0.35f + 0.3f * sn(p, 7f)) * w; o.rx[JAW] += 0.3f * w; }   // ladea y pia
+            else { o.rz[BODY] += sn(p, 3f) * 0.3f * w; o.rx[HEAD] += sn(p, 6f) * 0.35f * w; o.dy[BODY] -= Math.abs(sn(p, 3f)) * 1.6f * w; }    // baila
+        }
     }
 }
