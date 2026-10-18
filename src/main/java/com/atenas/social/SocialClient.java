@@ -64,10 +64,12 @@ public final class SocialClient {
     private static String token = "";
     private static boolean identityLoaded;
     /** Nick (en minúsculas) que ya demostró con Mojang que su cuenta premium es suya, y último intento que no se pudo verificar. */
-    private static String verifiedFor = "";
+    private static volatile String verifiedFor = "";
     private static String failedFor = "";
     private static long failedAt;
+    private static boolean failedHard; // true: Mojang rechazó la sesión (cuenta sin conexión); false: el servicio no pudo confirmarla
     private static final long RETRY_UNVERIFIED_MS = 5L * 60L * 1000L;
+    private static final long RETRY_SOFT_MS = 20L * 1000L;
     /** Por que fallo la ultima verificacion (vacio si fue bien o aun no se intento). Tambien sale en latest.log con el prefijo [AtenasSocial]. */
     private static volatile String verifyError = "";
     public static String verifyError() { return verifyError; }
@@ -147,7 +149,7 @@ public final class SocialClient {
     }
 
     /** True si esta cuenta ya demostró con Mojang que es premium y suya (los cosméticos privados lo exigen). */
-    public static synchronized boolean verified() { return myName().equalsIgnoreCase(verifiedFor); }
+    public static boolean verified() { return myName().equalsIgnoreCase(verifiedFor); }
 
     /**
      * Verificación premium: pide un desafío al servicio, lo registra en Mojang con TU sesión (joinServer, solo el dueño de la
@@ -157,28 +159,43 @@ public final class SocialClient {
     private static synchronized void ensureVerified(boolean force) {
         String name = myName().toLowerCase();
         if (!force && name.equals(verifiedFor)) return;
-        if (!force && name.equals(failedFor) && System.currentTimeMillis() - failedAt < RETRY_UNVERIFIED_MS) return;
+        if (!force && name.equals(failedFor) && System.currentTimeMillis() - failedAt < (failedHard ? RETRY_UNVERIFIED_MS : RETRY_SOFT_MS)) return;
+        String lastSid = "";
         try {
-            JsonObject ch = rawPost("/auth/challenge", new JsonObject());
-            Minecraft mc = Minecraft.getInstance();
-            try {
-                mc.getMinecraftSessionService().joinServer(mc.getUser().getGameProfile(), mc.getUser().getAccessToken(), str(ch, "serverId"));
-            } catch (Exception e) {
-                failedFor = name; failedAt = System.currentTimeMillis(); // Mojang no aceptó la sesión: cuenta sin conexión o sesión caducada
-                verifyError = "Mojang rechazó la sesión del juego (" + e.getClass().getSimpleName() + ": " + e.getMessage() + ")";
-                System.err.println("[AtenasSocial] verificación: " + verifyError + " · nick=" + name);
-                return;
+            // Hasta 3 intentos: Mojang a veces tarda en ver el joinServer y el servicio recibe un "no" que es pasajero.
+            for (int attempt = 1; attempt <= 3; attempt++) {
+                JsonObject ch = rawPost("/auth/challenge", new JsonObject());
+                lastSid = str(ch, "serverId");
+                Minecraft mc = Minecraft.getInstance();
+                try {
+                    mc.getMinecraftSessionService().joinServer(mc.getUser().getGameProfile(), mc.getUser().getAccessToken(), lastSid);
+                } catch (Exception e) {
+                    failedFor = name; failedAt = System.currentTimeMillis(); failedHard = true; // Mojang no aceptó la sesión: cuenta sin conexión o sesión caducada
+                    verifyError = "Mojang rechazó la sesión del juego (" + e.getClass().getSimpleName() + ": " + e.getMessage() + ")";
+                    System.err.println("[AtenasSocial] verificación: " + verifyError + " · nick=" + name);
+                    return;
+                }
+                try { Thread.sleep(300L * attempt); } catch (InterruptedException ie) { Thread.currentThread().interrupt(); }
+                try {
+                    rawPost("/auth/verify", new JsonObject());
+                    verifiedFor = name;
+                    failedFor = "";
+                    verifyError = "";
+                    return;
+                } catch (ApiError e) {
+                    if ("not_verified".equals(e.code) && attempt < 3) {
+                        System.err.println("[AtenasSocial] verificación: intento " + attempt + " sin confirmar, reintentando…");
+                        continue;
+                    }
+                    throw e;
+                }
             }
-            rawPost("/auth/verify", new JsonObject());
-            verifiedFor = name;
-            failedFor = "";
-            verifyError = "";
         } catch (ApiError e) {
             verifyError = "el servicio respondió " + e.code + ": " + e.getMessage();
             System.err.println("[AtenasSocial] verificación: " + verifyError + " · nick=" + name);
-            if ("not_verified".equals(e.code)) diagnoseVerify(name);
+            if ("not_verified".equals(e.code)) diagnoseVerify(name, lastSid);
             if (!"mojang_down".equals(e.code) && !"too_many".equals(e.code) && !"no_challenge".equals(e.code) && !"server".equals(e.code)) {
-                failedFor = name; failedAt = System.currentTimeMillis(); // el servicio dijo que no: se reintenta más tarde
+                failedFor = name; failedAt = System.currentTimeMillis(); failedHard = false; // el servicio dijo que no: se reintenta pronto
             }
         } catch (IOException e) {
             verifyError = "sin conexión con el servicio de verificación (" + e.getMessage() + ")";
@@ -187,29 +204,18 @@ public final class SocialClient {
         }
     }
 
-    /**
-     * Solo diagnóstico (se llama cuando el servicio dijo not_verified): muestra qué tipo de sesión tiene el juego y repite el registro en
-     * Mojang preguntándole DIRECTO a Mojang si lo ve. Así se sabe si el fallo es de la sesión de este PC o del servicio.
-     */
-    private static void diagnoseVerify(String name) {
+    /** Solo para el log: pregunta a Mojang desde este PC si ve el serverId, para saber si el fallo está en la sesión o en el servicio. */
+    private static void diagnoseVerify(String name, String sid) {
         try {
             Minecraft mc = Minecraft.getInstance();
-            net.minecraft.client.User u = mc.getUser();
-            String tok = u.getAccessToken() == null ? "" : u.getAccessToken();
-            String shape = tok.length() + " caracteres" + (tok.matches("[0-9a-fA-F-]{32,36}") ? " (parece un UUID: sesión SIN CONEXIÓN)" : "");
-            System.err.println("[AtenasSocial] diagnóstico: tipo de sesión=" + u.getType() + " · token=" + shape + " · uuid=" + u.getProfileId() + " · nick=" + u.getName());
-            JsonObject ch = rawPost("/auth/challenge", new JsonObject());
-            String sid = str(ch, "serverId");
-            mc.getMinecraftSessionService().joinServer(u.getGameProfile(), u.getAccessToken(), sid);
-            HttpURLConnection c = (HttpURLConnection) new URL("https://sessionserver.mojang.com/session/minecraft/hasJoined?username="
-                + java.net.URLEncoder.encode(u.getName(), "UTF-8") + "&serverId=" + java.net.URLEncoder.encode(sid, "UTF-8")).openConnection();
-            c.setConnectTimeout(6000);
-            c.setReadTimeout(6000);
-            int st = c.getResponseCode();
-            System.err.println("[AtenasSocial] diagnóstico: Mojang hasJoined desde este PC = HTTP " + st
-                + (st == 200 ? " (Mojang SÍ ve tu sesión: el fallo está en el servicio)" : st == 204 ? " (Mojang NO registró tu sesión)" : ""));
+            System.err.println("[AtenasSocial] diagnóstico: tipo de sesión=" + mc.getUser().getType() + " · token=" + mc.getUser().getAccessToken().length() + " caracteres · uuid=" + mc.getUser().getProfileId() + " · nick=" + name);
+            if (sid == null || sid.isEmpty()) return;
+            HttpURLConnection c = (HttpURLConnection) new URL("https://sessionserver.mojang.com/session/minecraft/hasJoined?username=" + java.net.URLEncoder.encode(mc.getUser().getName(), "UTF-8") + "&serverId=" + sid).openConnection();
+            c.setConnectTimeout(5000); c.setReadTimeout(5000);
+            int code = c.getResponseCode();
+            System.err.println("[AtenasSocial] diagnóstico: Mojang hasJoined desde este PC = HTTP " + code + (code == 200 ? " (Mojang SÍ ve tu sesión: el fallo está en el servicio)" : " (Mojang no ve tu sesión)"));
         } catch (Exception e) {
-            System.err.println("[AtenasSocial] diagnóstico: " + e);
+            System.err.println("[AtenasSocial] diagnóstico: no se pudo consultar a Mojang (" + e.getMessage() + ")");
         }
     }
 
