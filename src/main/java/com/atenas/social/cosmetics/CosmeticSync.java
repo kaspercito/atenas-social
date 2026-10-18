@@ -120,13 +120,17 @@ public final class CosmeticSync {
                     ok();
                     // el servicio no dejo guardar algo privado: se quita de tu seleccion y se avisa
                     final List<String[]> denied = new ArrayList<>();
+                    boolean unverified = false;
                     if (res.has("denied") && res.get("denied").isJsonArray()) {
                         for (JsonElement el : res.getAsJsonArray("denied")) {
                             if (!el.isJsonObject()) continue;
                             String ty = str(el.getAsJsonObject(), "type"), id = str(el.getAsJsonObject(), "id");
+                            // "unverified": es tuyo pero esta sesion aun no se verifico con Mojang -> NO se quita, se reintenta
+                            if ("unverified".equals(str(el.getAsJsonObject(), "reason"))) { unverified = true; continue; }
                             if (ty != null && id != null) denied.add(new String[] {ty, id});
                         }
                     }
+                    if (unverified) { com.atenas.social.SocialClient.retryVerify(); dirty = true; lastPush = System.currentTimeMillis() + 20000L; }
                     if (!denied.isEmpty()) {
                         mc.execute(() -> {
                             for (String[] d : denied) {

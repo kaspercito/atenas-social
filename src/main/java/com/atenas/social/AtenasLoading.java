@@ -79,6 +79,7 @@ final class AtenasLoading extends Overlay {
             ReloadInstance ri = findReload(o);
             if (ri == null) return;
             mc.setOverlay(new AtenasLoading(mc, o, ri));
+            System.out.println("[Atenas] pantalla de carga propia instalada sobre " + o.getClass().getName());
         } catch (Throwable t) {
             handled = true;
         }
@@ -137,52 +138,129 @@ final class AtenasLoading extends Overlay {
         return (r << 16) | (gg << 8) | b;
     }
 
+    private static final String[] TIPS_ES = {"Sincronizando tu identidad", "Cargando cosm\u00e9ticos y mascotas", "Conectando con Atenas", "Preparando tu men\u00fa"};
+    private static final String[] TIPS_EN = {"Syncing your identity", "Loading cosmetics and pets", "Connecting to Atenas", "Preparing your menu"};
+
+    private void px(GuiGraphics g, float x, float y, float sz, int rgb, float al) {
+        if (al <= 0.003f) return;
+        int ix = Math.round(x - sz / 2f), iy = Math.round(y - sz / 2f), is = Math.max(1, Math.round(sz));
+        g.fill(ix, iy, ix + is, iy + is, a(rgb, al));
+    }
+
+    private void bracket(GuiGraphics g, int x, int y, int len, int dx, int dy, int rgb, float al) {
+        g.fill(Math.min(x, x + dx * len), y, Math.max(x, x + dx * len) + 1, y + 1, a(rgb, al));
+        g.fill(x, Math.min(y, y + dy * len), x + 1, Math.max(y, y + dy * len) + 1, a(rgb, al));
+    }
+
     private void draw(GuiGraphics g, float alpha, float t) {
         final int w = g.guiWidth(), h = g.guiHeight();
         final float k = Math.max(0.6f, Math.min(w / 427f, h / 240f)); // 1.0 = ventana de 427x240 unidades de GUI
         RenderSystem.enableBlend();
         RenderSystem.defaultBlendFunc();
 
-        g.fill(0, 0, w, h, a(0x07060F, alpha));
-        g.fillGradient(0, (int) (h * 0.62f), w, h, a(0x8B5CF6, 0f), a(0x8B5CF6, 0.33f * alpha));
+        // fondo: degradado profundo + resplandor inferior
+        g.fillGradient(0, 0, w, h, a(0x04030B, alpha), a(0x120A2E, alpha));
+        g.fillGradient(0, (int) (h * 0.55f), w, h, a(0x22D3EE, 0f), a(0x8B5CF6, 0.20f * alpha));
+
+        // rejilla en perspectiva que avanza hacia ti
+        final float horizon = h * 0.58f, flow = (t * 0.35f) % 1f;
+        for (int i = 0; i < 14; i++) {
+            float p = (i + flow) / 14f;
+            int gy = Math.round(horizon + (h - horizon) * p * p);
+            g.fill(0, gy, w, gy + 1, a(0x8B5CF6, (0.05f + 0.20f * p) * alpha));
+        }
+        for (int i = -10; i <= 10; i++) {
+            float gx = w / 2f + i * (w / 16f);
+            for (int yy = (int) horizon; yy < h; yy += 3) {
+                float p = (yy - horizon) / (h - horizon);
+                int xx = Math.round(w / 2f + (gx - w / 2f) * (0.15f + p * 1.1f));
+                g.fill(xx, yy, xx + 1, yy + 1, a(0x22D3EE, (0.03f + 0.10f * p) * alpha));
+            }
+        }
         for (int i = 0; i < sx.length; i++) {
             float tw = 0.25f + 0.55f * (0.5f + 0.5f * (float) Math.sin(t * 1.4f + sp[i]));
-            int px = (int) (sx[i] * w), py = (int) (sy[i] * h), sz = Math.max(1, Math.round(ss[i] * Math.max(1f, k * 0.6f)));
-            g.fill(px, py, px + sz, py + sz, a(0xFFFFFF, tw * 0.8f * alpha));
+            int ppx = (int) (sx[i] * w), ppy = (int) (sy[i] * h * 0.75f), sz = Math.max(1, Math.round(ss[i] * Math.max(1f, k * 0.6f)));
+            g.fill(ppx, ppy, ppx + sz, ppy + sz, a(0xFFFFFF, tw * 0.7f * alpha));
         }
 
+        // marco HUD en las esquinas
+        final int m = Math.round(14 * k), bl = Math.round(22 * k);
+        bracket(g, m, m, bl, 1, 1, 0x22D3EE, 0.8f * alpha);
+        bracket(g, w - m - 1, m, bl, -1, 1, 0x22D3EE, 0.8f * alpha);
+        bracket(g, m, h - m - 1, bl, 1, -1, 0x8B5CF6, 0.8f * alpha);
+        bracket(g, w - m - 1, h - m - 1, bl, -1, -1, 0x8B5CF6, 0.8f * alpha);
+
         final int cx = w / 2;
-        final int logoS = Math.round(64 * k), ly = Math.round(h / 2f - 92 * k);
-        float pulse = 0.5f + 0.5f * (float) Math.sin(t * 3f);
-        for (int n = 3; n >= 1; n--) {
-            int gs = logoS + Math.round(n * 10 * k);
-            g.fill(cx - gs / 2, ly + logoS / 2 - gs / 2, cx + gs / 2, ly + logoS / 2 + gs / 2, a(0x8B5CF6, (0.03f + 0.04f * pulse) / n * alpha));
+        final int logoS = Math.round(60 * k), ly = Math.round(h / 2f - 98 * k);
+        final float lcx = cx, lcy = ly + logoS / 2f;
+
+        // halo pulsante
+        float pulse = 0.5f + 0.5f * (float) Math.sin(t * 2.6f);
+        for (int n = 4; n >= 1; n--) {
+            int gs = logoS + Math.round(n * 9 * k);
+            g.fill(Math.round(lcx - gs / 2f), Math.round(lcy - gs / 2f), Math.round(lcx + gs / 2f), Math.round(lcy + gs / 2f), a(0x8B5CF6, (0.025f + 0.035f * pulse) / n * alpha));
         }
         if (logo == null) logo = loadLogo();
         if (logo != null) quad(g, logo.getId(), cx - logoS / 2f, ly, logoS, logoS, alpha);
 
-        float y = ly + logoS + 8 * k;
-        y += text(g, "ATENAS", 26 * k, 0xA78BFA, cx, y, true, alpha) + 1;
-        y += text(g, "M  O  D   \u00b7   1.20.1", 8 * k, 0x22D3EE, cx, y, true, alpha) + 6 * k;
-        g.fill(Math.round(cx - 80 * k), (int) y, Math.round(cx + 80 * k), (int) y + 1, a(0x6D4FC7, alpha));
-        g.fill(cx - Math.round(12 * k), (int) y - 1, cx + Math.round(12 * k), (int) y + 2, a(0x8B5CF6, alpha));
-
-        // barra de carga
-        final int bw = Math.round(200 * k), bh = Math.max(3, Math.round(4 * k));
-        final int bx = cx - bw / 2, by = Math.round(h / 2f + 62 * k);
-        g.fill(bx - 1, by - 1, bx + bw + 1, by + bh + 1, a(0x2B2848, alpha));
-        g.fill(bx, by, bx + bw, by + bh, a(0x0B0E1C, alpha));
-        int fill = Math.round(bw * Mth.clamp(shown, 0f, 1f));
-        for (int i = 0; i < fill; i++) {
-            float p = (float) i / bw;
-            int c = p < 0.5f ? mix(0x22D3EE, 0x8B5CF6, p / 0.5f) : mix(0x8B5CF6, 0xEC4899, (p - 0.5f) / 0.5f);
-            g.fill(bx + i, by, bx + i + 1, by + bh, a(c, alpha));
+        // anillos orbitales (puntos con cola luminosa), uno en cada sentido
+        for (int ring = 0; ring < 2; ring++) {
+            final int dots = ring == 0 ? 56 : 40;
+            final float r = logoS * (ring == 0 ? 0.88f : 1.08f);
+            final float head = t * (ring == 0 ? 1.5f : -1.1f);
+            for (int i = 0; i < dots; i++) {
+                float ang = (float) (i * 6.2831853 / dots);
+                float d = ((head - ang) % 6.2831853f + 6.2831853f) % 6.2831853f; // distancia detras de la cabeza
+                float glow = (float) Math.exp(-d * 1.6f);
+                float x = lcx + (float) Math.cos(ang) * r * 1.15f, y = lcy + (float) Math.sin(ang) * r * 0.62f; // elipse: se ve inclinado
+                px(g, x, y, Math.max(1f, k * (1f + glow * 1.6f)), ring == 0 ? 0x22D3EE : 0xA78BFA, (0.18f + 0.82f * glow) * alpha);
+            }
         }
-        if (fill > 1) g.fill(bx + fill - 1, by - 1, bx + fill, by + bh + 1, a(0xFFFFFF, 0.9f * alpha));
 
-        String status = doneAt < 0 ? Lang.t("Cargando recursos", "Loading resources") : Lang.t("Abriendo el men\u00fa", "Opening the menu");
-        text(g, status, 7.5f * k, 0x9B97B8, cx - Math.round(14 * k), by + bh + 5 * k, false, alpha);
-        text(g, Math.round(Mth.clamp(shown, 0f, 1f) * 100f) + "%", 7.5f * k, 0xF1EEFC, bx + bw - Math.round(8 * k), by + bh + 5 * k, false, alpha);
+        float y = ly + logoS + 14 * k;
+        y += text(g, "A T E N A S", 22 * k, 0xE9E3FF, cx, y, true, alpha) + 0;
+        y += text(g, "M O D   \u00b7   1.20.1", 7.5f * k, 0x22D3EE, cx, y, true, alpha) + 8 * k;
+
+        // barra segmentada futurista
+        final int bw = Math.round(260 * k), bh = Math.max(5, Math.round(7 * k));
+        final int bx = cx - bw / 2, by = Math.round(h / 2f + 52 * k);
+        final int seg = Math.max(3, Math.round(5 * k)), gap = Math.max(1, Math.round(1.5f * k));
+        final int n = Math.max(10, bw / (seg + gap));
+        final float prog = Mth.clamp(shown, 0f, 1f);
+        final int filled = Math.round(n * prog);
+        g.fill(bx - 3, by - 3, bx + bw + 3, by + bh + 3, a(0x0B0E1C, 0.85f * alpha));
+        bracket(g, bx - 4, by - 4, 8, 1, 1, 0x22D3EE, alpha);
+        bracket(g, bx + bw + 3, by - 4, 8, -1, 1, 0x22D3EE, alpha);
+        bracket(g, bx - 4, by + bh + 3, 8, 1, -1, 0x8B5CF6, alpha);
+        bracket(g, bx + bw + 3, by + bh + 3, 8, -1, -1, 0x8B5CF6, alpha);
+        final float scan = (t * n * 0.9f) % (n + 8);
+        for (int i = 0; i < n; i++) {
+            int sxp = bx + Math.round(i * (bw / (float) n));
+            int wseg = Math.max(2, Math.round(bw / (float) n) - gap);
+            if (i < filled) {
+                float pp = i / (float) n;
+                int c = pp < 0.5f ? mix(0x22D3EE, 0x8B5CF6, pp / 0.5f) : mix(0x8B5CF6, 0xEC4899, (pp - 0.5f) / 0.5f);
+                float sh = Math.max(0f, 1f - Math.abs(i - scan) / 3f); // brillo que recorre lo cargado
+                g.fill(sxp, by, sxp + wseg, by + bh, a(mix(c, 0xFFFFFF, sh * 0.7f), alpha));
+                g.fill(sxp, by + bh, sxp + wseg, by + bh + Math.max(1, Math.round(2 * k)), a(c, 0.18f * alpha)); // reflejo
+            } else {
+                g.fill(sxp, by, sxp + wseg, by + bh, a(0x1B1A33, alpha));
+            }
+        }
+        if (filled < n) { // segmento actual parpadeando
+            int sxp = bx + Math.round(filled * (bw / (float) n));
+            g.fill(sxp, by, sxp + Math.max(2, Math.round(bw / (float) n) - gap), by + bh, a(0xFFFFFF, (0.35f + 0.5f * pulse) * alpha));
+        }
+        // resplandor bajo lo cargado
+        g.fillGradient(bx, by - Math.round(6 * k), bx + Math.round(bw * prog), by, a(0x8B5CF6, 0f), a(0x8B5CF6, 0.16f * alpha));
+
+        // textos de estado
+        String[] tips = Lang.es() ? TIPS_ES : TIPS_EN;
+        String status = doneAt < 0 ? tips[(int) (t / 2.2f) % tips.length] : Lang.t("Abriendo el men\u00fa", "Opening the menu");
+        int dots = 1 + (int) (t * 2.5f) % 3;
+        text(g, status + "...".substring(0, dots), 7.5f * k, 0x9B97B8, bx + Math.round(46 * k), by + bh + 8 * k, false, alpha);
+        text(g, Math.round(prog * 100f) + "%", 12 * k, 0xF1EEFC, bx + bw - Math.round(14 * k), by + bh + 5 * k, true, alpha);
+        text(g, "ATENAS  \u00b7  " + Lang.t("iniciando", "booting"), 6 * k, 0x6D6A8F, cx, h - m - 8 * k, false, alpha);
     }
 
     private void quad(GuiGraphics g, int texId, float x, float y, float w, float h, float alpha) {

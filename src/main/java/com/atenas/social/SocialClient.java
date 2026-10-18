@@ -153,6 +153,9 @@ public final class SocialClient {
     /** True si esta cuenta ya demostró con Mojang que es premium y suya (los cosméticos privados lo exigen). */
     public static boolean verified() { return myName().equalsIgnoreCase(verifiedFor); }
 
+    /** Olvida un intento de verificacion fallido para que la proxima llamada lo vuelva a intentar. */
+    public static synchronized void retryVerify() { failedFor = ""; failedAt = 0; }
+
     /**
      * Verificación premium: pide un desafío al servicio, lo registra en Mojang con TU sesión (joinServer, solo el dueño de la
      * cuenta puede) y el servicio lo comprueba con Mojang (hasJoined). Con una cuenta sin conexión Mojang lo rechaza y la cuenta
