@@ -39,6 +39,7 @@ public final class ClientInit {
         // La carga de mods dura minutos y el cuadro de render casi no corre: se instala nuestra pantalla en cuanto empieza la carga
         // (FMLClientSetupEvent ya corre con el overlay de Mojang creado), no en el primer RenderTick.
         mod.addListener((FMLClientSetupEvent ev) -> Minecraft.getInstance().execute(() -> AtenasLoading.tryInstall(Minecraft.getInstance())));
+        mod.addListener((net.minecraftforge.fml.event.lifecycle.FMLConstructModEvent ev) -> Minecraft.getInstance().execute(() -> AtenasLoading.tryInstall(Minecraft.getInstance())));
         mod.addListener(CosmeticRender::registerDefinitions);
         mod.addListener(CosmeticRender::addLayers);
         MinecraftForge.EVENT_BUS.register(new ClientInit());
